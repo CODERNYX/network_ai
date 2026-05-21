@@ -7,7 +7,14 @@ import time
 
 import plotly.graph_objects as go
 
-from model import DDoSNet, LSTMModel, RLAgent
+import importlib
+import model
+
+importlib.reload(model)
+
+DDoSNet = model.DDoSNet
+LSTMModel = model.LSTMModel
+RLAgent = model.RLAgent
 from sklearn.preprocessing import StandardScaler
 
 # =========================================================
