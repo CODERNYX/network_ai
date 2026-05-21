@@ -7,14 +7,7 @@ import time
 
 import plotly.graph_objects as go
 
-import importlib
-import model
-
-importlib.reload(model)
-
-DDoSNet = model.DDoSNet
-LSTMModel = model.LSTMModel
-RLAgent = model.RLAgent
+from model import *
 from sklearn.preprocessing import StandardScaler
 
 # =========================================================
