@@ -4,10 +4,22 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import time
+import importlib
 
 import plotly.graph_objects as go
 
-from model import *
+# =========================================================
+# FORCE RELOAD MODEL
+# =========================================================
+
+import model
+
+importlib.reload(model)
+
+DDoSNet = model.DDoSNet
+LSTMModel = model.LSTMModel
+RLAgent = model.RLAgent
+
 from sklearn.preprocessing import StandardScaler
 
 # =========================================================
@@ -118,113 +130,6 @@ LOG CARDS
     font-size: 14px;
 }
 
-/* =====================================================
-TABLET
-===================================================== */
-
-@media (max-width: 1024px) {
-
-    h1 {
-        font-size: 28px !important;
-    }
-
-    h2 {
-        font-size: 22px !important;
-    }
-
-    h3 {
-        font-size: 18px !important;
-    }
-
-    button[data-baseweb="tab"] {
-
-        font-size: 12px;
-    }
-
-    .scroll-log {
-
-        height: 60vh;
-    }
-}
-
-/* =====================================================
-MOBILE
-===================================================== */
-
-@media (max-width: 768px) {
-
-    .block-container {
-
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
-    }
-
-    h1 {
-
-        font-size: 22px !important;
-
-        text-align: center;
-    }
-
-    h2 {
-
-        font-size: 18px !important;
-    }
-
-    h3 {
-
-        font-size: 16px !important;
-    }
-
-    button[data-baseweb="tab"] {
-
-        font-size: 11px;
-
-        padding: 6px;
-    }
-
-    [data-testid="metric-container"] {
-
-        padding: 8px;
-    }
-
-    .scroll-log {
-
-        height: 55vh;
-
-        font-size: 12px;
-    }
-
-    .log-card {
-
-        font-size: 12px;
-    }
-}
-
-/* =====================================================
-SMALL MOBILE
-===================================================== */
-
-@media (max-width: 480px) {
-
-    h1 {
-
-        font-size: 18px !important;
-    }
-
-    button[data-baseweb="tab"] {
-
-        font-size: 10px;
-
-        padding: 4px;
-    }
-
-    .scroll-log {
-
-        height: 50vh;
-    }
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -234,7 +139,7 @@ SMALL MOBILE
 
 st.title("🚀 AI vs Rule-Based Network Security Dashboard")
 
-st.caption("📱 Responsive AI Security Dashboard for All Devices")
+st.caption("📱 Responsive AI Security Dashboard")
 
 # =========================================================
 # SIDEBAR
@@ -246,14 +151,16 @@ speed = st.sidebar.slider(
     "Simulation Speed",
     0.01,
     1.0,
-    0.1
+    0.1,
+    key="speed_slider"
 )
 
 GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
     "Graph Refresh Interval",
     1,
     20,
-    10
+    10,
+    key="graph_interval"
 )
 
 # =========================================================
@@ -279,6 +186,12 @@ def load_data():
 df = load_data()
 
 # =========================================================
+# SAVE ORIGINAL DATA
+# =========================================================
+
+original_df = df.copy()
+
+# =========================================================
 # LOAD MODELS
 # =========================================================
 
@@ -288,7 +201,10 @@ def load_models():
     ddos_model = DDoSNet(input_size=5)
 
     ddos_model.load_state_dict(
-        torch.load("ddos_model.pth")
+        torch.load(
+            "ddos_model.pth",
+            map_location=torch.device("cpu")
+        )
     )
 
     ddos_model.eval()
@@ -296,7 +212,10 @@ def load_models():
     lstm_model = LSTMModel()
 
     lstm_model.load_state_dict(
-        torch.load("lstm_model.pth")
+        torch.load(
+            "lstm_model.pth",
+            map_location=torch.device("cpu")
+        )
     )
 
     lstm_model.eval()
@@ -323,6 +242,10 @@ features = [
     f for f in features
     if f in df.columns
 ]
+
+# =========================================================
+# SCALE ONLY ML DATA
+# =========================================================
 
 scaler = StandardScaler()
 
@@ -428,57 +351,6 @@ with tabs[5]:
         use_container_width=True
     )
 
-    fig_compare = go.Figure()
-
-    fig_compare.add_trace(
-        go.Bar(
-            name="Traditional IDS",
-            x=comparison_df["Feature"],
-            y=comparison_df["Traditional IDS"]
-        )
-    )
-
-    fig_compare.add_trace(
-        go.Bar(
-            name="ML-Based IDS",
-            x=comparison_df["Feature"],
-            y=comparison_df["ML-Based IDS"]
-        )
-    )
-
-    fig_compare.add_trace(
-        go.Bar(
-            name="Proposed System",
-            x=comparison_df["Feature"],
-            y=comparison_df["Proposed System"]
-        )
-    )
-
-    fig_compare.update_layout(
-        title="📊 Technology Comparison",
-        barmode='group',
-        height=500
-    )
-
-    st.plotly_chart(
-        fig_compare,
-        use_container_width=True
-    )
-
-    st.markdown("""
-
-    ## ✅ Advantages of Proposed System
-
-    - Combines ML + Rule-Based Detection
-    - Uses Reinforcement Learning
-    - Supports Edge + Cloud Computing
-    - Performs Traffic Prediction
-    - Provides Real-Time Monitoring
-    - Automatically Selects Mitigation Actions
-    - Adaptive to Dynamic Traffic Conditions
-
-    """)
-
 # =========================================================
 # STORAGE
 # =========================================================
@@ -501,6 +373,8 @@ ml_detected = 0
 
 rule_detected = 0
 
+normal_count = 0
+
 # =========================================================
 # MAIN LOOP
 # =========================================================
@@ -509,11 +383,15 @@ for i in range(min(500, len(df))):
 
     row = df.iloc[i]
 
+    orig_row = original_df.iloc[i]
+
     # =====================================================
     # TRAFFIC
     # =====================================================
 
-    traffic = abs(float(row["Flow Bytes/s"]))
+    traffic = abs(
+        float(orig_row["Flow Bytes/s"])
+    )
 
     traffic_history.append(traffic)
 
@@ -561,10 +439,10 @@ for i in range(min(500, len(df))):
     attack_prob = probabilities[0][1].item()
 
     # =====================================================
-    # BALANCED DETECTION
+    # BALANCED ML DETECTION
     # =====================================================
 
-    if attack_prob > 0.75:
+    if attack_prob > 0.50:
 
         ml_detection = "🚨 DDoS"
 
@@ -574,14 +452,24 @@ for i in range(min(500, len(df))):
 
         ml_detection = "✅ Normal"
 
+        normal_count += 1
+
     # =====================================================
-    # RULE DETECTION
+    # RULE-BASED DETECTION
+    # USING ORIGINAL VALUES
     # =====================================================
 
     if (
-        row["Flow Packets/s"] > 1.5
-        or row["Total Fwd Packets"] > 1.8
-        or traffic > 3
+
+        orig_row["Flow Packets/s"] > 10000
+
+        or
+
+        orig_row["Total Fwd Packets"] > 5000
+
+        or
+
+        orig_row["Flow Bytes/s"] > 1000000
     ):
 
         rule_detection = "🚨 DDoS"
@@ -648,7 +536,7 @@ for i in range(min(500, len(df))):
 
         top2.metric(
             "ML Attack %",
-            f"{attack_prob*100:.1f}%"
+            f"{attack_prob*100:.2f}%"
         )
 
         mid1.metric(
@@ -669,7 +557,7 @@ for i in range(min(500, len(df))):
             )
 
     # =====================================================
-    # GRAPHS
+    # GRAPH UPDATES
     # =====================================================
 
     if i % GRAPH_UPDATE_INTERVAL == 0:
@@ -731,7 +619,7 @@ for i in range(min(500, len(df))):
         )
 
         # =================================================
-        # PROBABILITY GRAPH
+        # ATTACK PROBABILITY
         # =================================================
 
         fig3 = go.Figure()
