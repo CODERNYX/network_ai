@@ -17,26 +17,51 @@ from sklearn.preprocessing import StandardScaler
 # =========================================================
 
 st.set_page_config(
-    page_title="AI Network Security Dashboard",
+    page_title="AI vs Rule-Based DDoS Detection",
     layout="wide"
 )
 
-st.title("🚀 AI-Driven Network Traffic Monitoring & DDoS Detection")
+st.title("🚀 AI vs Rule-Based Network Security Dashboard")
 
 # =========================================================
-# SIDEBAR INFO
+# SIDEBAR
 # =========================================================
 
-st.sidebar.subheader("📁 System Info")
+st.sidebar.header("⚙️ Dashboard Controls")
 
-st.sidebar.write("Current Directory:")
+speed = st.sidebar.slider(
+    "Simulation Speed",
+    0.01,
+    1.0,
+    0.15
+)
+
+PAGE_SIZE = st.sidebar.slider(
+    "Logs Per Page",
+    5,
+    50,
+    10
+)
+
+GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
+    "Graph Refresh Interval",
+    1,
+    20,
+    8
+)
+
+# =========================================================
+# DEBUGGING INFO
+# =========================================================
+
+st.sidebar.subheader("📁 File Status")
+
 st.sidebar.write(os.getcwd())
 
-st.sidebar.write("Available Files:")
 st.sidebar.write(os.listdir())
 
 # =========================================================
-# LOAD DATASET
+# LOAD DATA
 # =========================================================
 
 @st.cache_data
@@ -110,47 +135,22 @@ df[features] = scaler.fit_transform(
 )
 
 # =========================================================
-# SIDEBAR CONTROLS
-# =========================================================
-
-st.sidebar.subheader("⚙️ Controls")
-
-speed = st.sidebar.slider(
-    "Simulation Speed",
-    0.01,
-    1.0,
-    0.2
-)
-
-PAGE_SIZE = st.sidebar.slider(
-    "Logs Per Page",
-    5,
-    50,
-    10
-)
-
-GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
-    "Graph Refresh Rate",
-    1,
-    20,
-    10
-)
-
-# =========================================================
 # METRICS
 # =========================================================
 
-metric1, metric2, metric3, metric4 = st.columns(4)
+st.subheader("📊 Real-Time Detection Metrics")
+
+m1, m2, m3, m4, m5 = st.columns(5)
 
 # =========================================================
-# PLACEHOLDERS
+# CHART PLACEHOLDERS
 # =========================================================
 
-traffic_graph = st.empty()
+ml_chart = st.empty()
 
-prediction_graph = st.empty()
+comparison_chart = st.empty()
 
-probability_graph = st.empty()
+prob_chart = st.empty()
 
 col1, col2 = st.columns(2)
 
@@ -159,10 +159,10 @@ pie_chart = col1.empty()
 bar_chart = col2.empty()
 
 # =========================================================
-# LOG SECTION
+# LOG TABLE
 # =========================================================
 
-st.subheader("📜 Network Security Logs")
+st.subheader("📜 Detection Logs")
 
 log_placeholder = st.empty()
 
@@ -172,13 +172,11 @@ log_placeholder = st.empty()
 
 traffic_history = []
 
-prediction_history = []
+ml_history = []
+
+rule_history = []
 
 attack_prob_history = []
-
-attack_history = []
-
-action_history = []
 
 logs = []
 
@@ -186,8 +184,14 @@ seq = []
 
 SEQ_LEN = 10
 
+ml_detected = 0
+
+rule_detected = 0
+
+normal_count = 0
+
 # =========================================================
-# PAGINATION
+# PAGE CONTROL
 # =========================================================
 
 page = st.sidebar.number_input(
@@ -207,25 +211,23 @@ for i in range(min(300, len(df))):
     row = df.iloc[i]
 
     # =====================================================
-    # SIMULATED TRAFFIC
+    # TRAFFIC
     # =====================================================
 
     traffic = row["Flow Bytes/s"]
 
-    traffic += np.random.normal(0, 0.3)
+    traffic += np.random.normal(0, 0.25)
+
+    traffic_history.append(float(traffic))
 
     # =====================================================
-    # LSTM SEQUENCE
+    # LSTM PREDICTION
     # =====================================================
 
     seq.append([traffic])
 
     if len(seq) > SEQ_LEN:
         seq.pop(0)
-
-    # =====================================================
-    # LSTM PREDICTION
-    # =====================================================
 
     if len(seq) == SEQ_LEN:
 
@@ -241,7 +243,7 @@ for i in range(min(300, len(df))):
         pred = 0
 
     # =====================================================
-    # DDoS MODEL
+    # ML DETECTION
     # =====================================================
 
     features_input = torch.tensor([
@@ -262,24 +264,38 @@ for i in range(min(300, len(df))):
     attack_prob = probabilities[0][1].item()
 
     # =====================================================
-    # SMART DETECTION LOGIC
+    # ML LOGIC
     # =====================================================
 
-    traffic_score = abs(traffic)
+    if attack_prob > 0.55:
 
-    random_factor = np.random.rand()
+        ml_detection = "DDoS"
 
-    if attack_prob > 0.55 or traffic_score > 1.5:
-
-        anomaly = True
-
-    elif random_factor > 0.8:
-
-        anomaly = True
+        ml_detected += 1
 
     else:
 
-        anomaly = False
+        ml_detection = "Normal"
+
+    # =====================================================
+    # RULE-BASED SYSTEM
+    # =====================================================
+
+    if (
+        row["Flow Packets/s"] > 1.2
+        or row["Total Fwd Packets"] > 1.5
+        or abs(traffic) > 1.8
+    ):
+
+        rule_detection = "DDoS"
+
+        rule_detected += 1
+
+    else:
+
+        rule_detection = "Normal"
+
+        normal_count += 1
 
     # =====================================================
     # RL AGENT
@@ -295,7 +311,7 @@ for i in range(min(300, len(df))):
     action = rl.actions[action_idx]
 
     reward = rl.reward(
-        anomaly,
+        ml_detection == "DDoS",
         action_idx
     )
 
@@ -307,92 +323,88 @@ for i in range(min(300, len(df))):
     )
 
     # =====================================================
-    # STORE DATA
+    # STORE
     # =====================================================
 
-    traffic_history.append(
-        float(traffic)
+    ml_history.append(
+        1 if ml_detection == "DDoS"
+        else 0
     )
 
-    prediction_history.append(
-        float(pred)
+    rule_history.append(
+        1 if rule_detection == "DDoS"
+        else 0
     )
 
     attack_prob_history.append(
         attack_prob * 100
     )
 
-    attack_history.append(
-        "DDoS"
-        if anomaly
-        else "Normal"
-    )
-
-    action_history.append(action)
-
     logs.append({
+
         "Time": i,
+
         "Traffic":
             round(float(traffic), 2),
-        "Prediction":
-            round(float(pred), 2),
+
+        "ML Detection":
+            ml_detection,
+
+        "Rule Detection":
+            rule_detection,
+
         "Attack Probability":
             round(
                 attack_prob * 100,
                 2
             ),
+
         "RL Action":
-            action,
-        "Status":
-            "🚨 DDoS"
-            if anomaly
-            else "✅ Normal"
+            action
     })
 
     # =====================================================
     # METRICS
     # =====================================================
 
-    metric1.metric(
+    m1.metric(
         "Traffic",
         f"{traffic:.2f}"
     )
 
-    metric2.metric(
-        "Attack Probability",
+    m2.metric(
+        "ML Attack %",
         f"{attack_prob*100:.1f}%"
     )
 
-    metric3.metric(
+    m3.metric(
+        "ML Detections",
+        ml_detected
+    )
+
+    m4.metric(
+        "Rule Detections",
+        rule_detected
+    )
+
+    m5.metric(
         "RL Action",
         action
     )
 
-    if anomaly:
-
-        metric4.error(
-            "🚨 ATTACK"
-        )
-
-    else:
-
-        metric4.success(
-            "✅ NORMAL"
-        )
-
     # =====================================================
-    # SMOOTH GRAPH UPDATES
+    # GRAPH UPDATES
     # =====================================================
 
     if i % GRAPH_UPDATE_INTERVAL == 0:
 
         # =================================================
-        # TRAFFIC GRAPH
+        # LIVE TRAFFIC
         # =================================================
 
-        traffic_fig = go.Figure()
+        fig1 = go.Figure()
 
-        traffic_fig.add_trace(
+        fig1.add_trace(
             go.Scatter(
                 y=traffic_history,
                 mode='lines',
@@ -400,51 +412,59 @@ for i in range(min(300, len(df))):
             )
         )
 
-        traffic_fig.update_layout(
+        fig1.update_layout(
             title="📈 Live Traffic Flow",
             xaxis_title="Time",
             yaxis_title="Traffic",
             height=400
         )
 
-        traffic_graph.plotly_chart(
-            traffic_fig,
+        ml_chart.plotly_chart(
+            fig1,
             use_container_width=True
         )
 
         # =================================================
-        # PREDICTION GRAPH
+        # ML VS RULE COMPARISON
         # =================================================
 
-        prediction_fig = go.Figure()
+        fig2 = go.Figure()
 
-        prediction_fig.add_trace(
+        fig2.add_trace(
             go.Scatter(
-                y=prediction_history,
+                y=ml_history,
                 mode='lines',
-                name='Prediction'
+                name='ML Detection'
             )
         )
 
-        prediction_fig.update_layout(
-            title="📉 LSTM Prediction",
+        fig2.add_trace(
+            go.Scatter(
+                y=rule_history,
+                mode='lines',
+                name='Rule-Based Detection'
+            )
+        )
+
+        fig2.update_layout(
+            title="🤖 ML vs 📏 Rule-Based Detection",
             xaxis_title="Time",
-            yaxis_title="Prediction",
+            yaxis_title="Detection",
             height=400
         )
 
-        prediction_graph.plotly_chart(
-            prediction_fig,
+        comparison_chart.plotly_chart(
+            fig2,
             use_container_width=True
         )
 
         # =================================================
-        # ATTACK PROBABILITY GRAPH
+        # ATTACK PROBABILITY
         # =================================================
 
-        prob_fig = go.Figure()
+        fig3 = go.Figure()
 
-        prob_fig.add_trace(
+        fig3.add_trace(
             go.Scatter(
                 y=attack_prob_history,
                 mode='lines',
@@ -452,15 +472,15 @@ for i in range(min(300, len(df))):
             )
         )
 
-        prob_fig.update_layout(
+        fig3.update_layout(
             title="🔥 Attack Probability %",
             xaxis_title="Time",
             yaxis_title="Probability %",
             height=400
         )
 
-        probability_graph.plotly_chart(
-            prob_fig,
+        prob_chart.plotly_chart(
+            fig3,
             use_container_width=True
         )
 
@@ -468,14 +488,18 @@ for i in range(min(300, len(df))):
         # PIE CHART
         # =================================================
 
-        attack_counts = pd.Series(
-            attack_history
-        ).value_counts()
-
         pie_fig = px.pie(
-            values=attack_counts.values,
-            names=attack_counts.index,
-            title="🚨 Attack Distribution"
+            names=[
+                "ML DDoS",
+                "Rule DDoS",
+                "Normal"
+            ],
+            values=[
+                ml_detected,
+                rule_detected,
+                normal_count
+            ],
+            title="🚨 Detection Distribution"
         )
 
         pie_fig.update_layout(
@@ -491,14 +515,16 @@ for i in range(min(300, len(df))):
         # BAR CHART
         # =================================================
 
-        action_counts = pd.Series(
-            action_history
-        ).value_counts()
-
         bar_fig = px.bar(
-            x=action_counts.index,
-            y=action_counts.values,
-            title="🤖 RL Action Distribution"
+            x=[
+                "ML",
+                "Rule-Based"
+            ],
+            y=[
+                ml_detected,
+                rule_detected
+            ],
+            title="📊 Detection Count Comparison"
         )
 
         bar_fig.update_layout(
@@ -511,7 +537,7 @@ for i in range(min(300, len(df))):
         )
 
     # =====================================================
-    # LOG PAGINATION
+    # PAGINATION
     # =====================================================
 
     log_df = pd.DataFrame(logs)
@@ -543,4 +569,6 @@ for i in range(min(300, len(df))):
     # DELAY
     # =====================================================
 
-    time.sleep(max(speed, 0.05))
+    time.sleep(
+        max(speed, 0.05)
+    )
