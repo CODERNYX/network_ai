@@ -118,28 +118,62 @@ df[features] = scaler.fit_transform(
 )
 
 # =========================================================
+# TOP NAVIGATION BAR
+# =========================================================
+
+tabs = st.tabs([
+    "📊 Dashboard",
+    "📈 Traffic Graph",
+    "🤖 ML vs Rule",
+    "🔥 Attack Probability",
+    "📜 Live Logs"
+])
+
+# =========================================================
 # METRICS
 # =========================================================
 
-st.subheader("📊 Live Metrics")
+with tabs[0]:
 
-m1, m2, m3, m4, m5 = st.columns(5)
+    st.subheader("📊 Real-Time Metrics")
 
-# =========================================================
-# CHARTS
-# =========================================================
+    m1, m2, m3, m4, m5 = st.columns(5)
 
-traffic_chart = st.empty()
-
-comparison_chart = st.empty()
+    dashboard_placeholder = st.empty()
 
 # =========================================================
-# LIVE DETECTION DIV
+# TRAFFIC GRAPH TAB
 # =========================================================
 
-st.subheader("📜 Live Detection Console")
+with tabs[1]:
 
-log_div = st.empty()
+    traffic_chart = st.empty()
+
+# =========================================================
+# ML VS RULE GRAPH TAB
+# =========================================================
+
+with tabs[2]:
+
+    comparison_chart = st.empty()
+
+# =========================================================
+# ATTACK PROBABILITY TAB
+# =========================================================
+
+with tabs[3]:
+
+    probability_chart = st.empty()
+
+# =========================================================
+# LIVE LOG TAB
+# =========================================================
+
+with tabs[4]:
+
+    st.subheader("📜 Live Detection Console")
+
+    log_div = st.empty()
 
 # =========================================================
 # STORAGE
@@ -239,7 +273,7 @@ for i in range(min(500, len(df))):
         ml_detection = "✅ Normal"
 
     # =====================================================
-    # RULE-BASED DETECTION
+    # RULE DETECTION
     # =====================================================
 
     if (
@@ -304,33 +338,35 @@ for i in range(min(500, len(df))):
     # METRICS
     # =====================================================
 
-    m1.metric(
-        "Traffic",
-        f"{traffic:.2f}"
-    )
+    with tabs[0]:
 
-    m2.metric(
-        "ML Attack %",
-        f"{attack_prob*100:.1f}%"
-    )
+        m1.metric(
+            "Traffic",
+            f"{traffic:.2f}"
+        )
 
-    m3.metric(
-        "ML Detections",
-        ml_detected
-    )
+        m2.metric(
+            "ML Attack %",
+            f"{attack_prob*100:.1f}%"
+        )
 
-    m4.metric(
-        "Rule Detections",
-        rule_detected
-    )
+        m3.metric(
+            "ML Detections",
+            ml_detected
+        )
 
-    m5.metric(
-        "RL Action",
-        action
-    )
+        m4.metric(
+            "Rule Detections",
+            rule_detected
+        )
+
+        m5.metric(
+            "RL Action",
+            action
+        )
 
     # =====================================================
-    # SMOOTH GRAPH UPDATES
+    # GRAPH UPDATES
     # =====================================================
 
     if i % GRAPH_UPDATE_INTERVAL == 0:
@@ -350,8 +386,8 @@ for i in range(min(500, len(df))):
         )
 
         fig1.update_layout(
-            title="📈 Live Traffic",
-            height=400
+            title="📈 Live Traffic Flow",
+            height=500
         )
 
         traffic_chart.plotly_chart(
@@ -360,7 +396,7 @@ for i in range(min(500, len(df))):
         )
 
         # =================================================
-        # COMPARISON GRAPH
+        # ML VS RULE GRAPH
         # =================================================
 
         fig2 = go.Figure()
@@ -377,13 +413,13 @@ for i in range(min(500, len(df))):
             go.Scatter(
                 y=rule_history,
                 mode='lines',
-                name='Rule-Based Detection'
+                name='Rule Detection'
             )
         )
 
         fig2.update_layout(
-            title="🤖 ML vs 📏 Rule-Based",
-            height=400
+            title="🤖 ML vs 📏 Rule-Based Detection",
+            height=500
         )
 
         comparison_chart.plotly_chart(
@@ -391,8 +427,32 @@ for i in range(min(500, len(df))):
             use_container_width=True
         )
 
+        # =================================================
+        # ATTACK PROBABILITY
+        # =================================================
+
+        fig3 = go.Figure()
+
+        fig3.add_trace(
+            go.Scatter(
+                y=attack_prob_history,
+                mode='lines',
+                name='Attack Probability'
+            )
+        )
+
+        fig3.update_layout(
+            title="🔥 Attack Probability %",
+            height=500
+        )
+
+        probability_chart.plotly_chart(
+            fig3,
+            use_container_width=True
+        )
+
     # =====================================================
-    # SCROLLABLE LIVE DIV
+    # LIVE LOG CONSOLE
     # =====================================================
 
     color = "#ff4b4b"
@@ -401,6 +461,7 @@ for i in range(min(500, len(df))):
         color = "#00c853"
 
     logs_html += f"""
+
     <div style="
         padding:10px;
         margin-bottom:10px;
@@ -430,14 +491,10 @@ for i in range(min(500, len(df))):
     </div>
     """
 
-    # =====================================================
-    # SCROLLABLE CONTAINER
-    # =====================================================
-
     log_div.markdown(
         f"""
         <div style="
-            height:500px;
+            height:600px;
             overflow-y:scroll;
             padding:10px;
             border:2px solid #444;
