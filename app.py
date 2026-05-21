@@ -17,30 +17,23 @@ from sklearn.preprocessing import StandardScaler
 # =========================================================
 
 st.set_page_config(
-    page_title="AI vs Rule-Based DDoS Detection",
+    page_title="AI vs Rule-Based DDoS Dashboard",
     layout="wide"
 )
 
 st.title("🚀 AI vs Rule-Based Network Security Dashboard")
 
 # =========================================================
-# SIDEBAR
+# SIDEBAR CONTROLS
 # =========================================================
 
-st.sidebar.header("⚙️ Dashboard Controls")
+st.sidebar.header("⚙️ Controls")
 
 speed = st.sidebar.slider(
     "Simulation Speed",
     0.01,
     1.0,
-    0.15
-)
-
-PAGE_SIZE = st.sidebar.slider(
-    "Logs Per Page",
-    5,
-    50,
-    10
+    0.1
 )
 
 GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
@@ -49,16 +42,6 @@ GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
     20,
     8
 )
-
-# =========================================================
-# DEBUGGING INFO
-# =========================================================
-
-st.sidebar.subheader("📁 File Status")
-
-st.sidebar.write(os.getcwd())
-
-st.sidebar.write(os.listdir())
 
 # =========================================================
 # LOAD DATA
@@ -138,33 +121,25 @@ df[features] = scaler.fit_transform(
 # METRICS
 # =========================================================
 
-st.subheader("📊 Real-Time Detection Metrics")
+st.subheader("📊 Live Metrics")
 
 m1, m2, m3, m4, m5 = st.columns(5)
 
 # =========================================================
-# CHART PLACEHOLDERS
+# CHARTS
 # =========================================================
 
-ml_chart = st.empty()
+traffic_chart = st.empty()
 
 comparison_chart = st.empty()
 
-prob_chart = st.empty()
-
-col1, col2 = st.columns(2)
-
-pie_chart = col1.empty()
-
-bar_chart = col2.empty()
-
 # =========================================================
-# LOG TABLE
+# LIVE DETECTION DIV
 # =========================================================
 
-st.subheader("📜 Detection Logs")
+st.subheader("📜 Live Detection Console")
 
-log_placeholder = st.empty()
+log_div = st.empty()
 
 # =========================================================
 # STORAGE
@@ -178,7 +153,7 @@ rule_history = []
 
 attack_prob_history = []
 
-logs = []
+logs_html = ""
 
 seq = []
 
@@ -191,22 +166,10 @@ rule_detected = 0
 normal_count = 0
 
 # =========================================================
-# PAGE CONTROL
-# =========================================================
-
-page = st.sidebar.number_input(
-    "📄 Log Page",
-    min_value=1,
-    value=1,
-    step=1,
-    key="log_page"
-)
-
-# =========================================================
 # MAIN LOOP
 # =========================================================
 
-for i in range(min(300, len(df))):
+for i in range(min(500, len(df))):
 
     row = df.iloc[i]
 
@@ -218,10 +181,12 @@ for i in range(min(300, len(df))):
 
     traffic += np.random.normal(0, 0.25)
 
-    traffic_history.append(float(traffic))
+    traffic_history.append(
+        float(traffic)
+    )
 
     # =====================================================
-    # LSTM PREDICTION
+    # LSTM
     # =====================================================
 
     seq.append([traffic])
@@ -263,22 +228,18 @@ for i in range(min(300, len(df))):
 
     attack_prob = probabilities[0][1].item()
 
-    # =====================================================
-    # ML LOGIC
-    # =====================================================
-
     if attack_prob > 0.55:
 
-        ml_detection = "DDoS"
+        ml_detection = "🚨 DDoS"
 
         ml_detected += 1
 
     else:
 
-        ml_detection = "Normal"
+        ml_detection = "✅ Normal"
 
     # =====================================================
-    # RULE-BASED SYSTEM
+    # RULE-BASED DETECTION
     # =====================================================
 
     if (
@@ -287,13 +248,13 @@ for i in range(min(300, len(df))):
         or abs(traffic) > 1.8
     ):
 
-        rule_detection = "DDoS"
+        rule_detection = "🚨 DDoS"
 
         rule_detected += 1
 
     else:
 
-        rule_detection = "Normal"
+        rule_detection = "✅ Normal"
 
         normal_count += 1
 
@@ -301,9 +262,8 @@ for i in range(min(300, len(df))):
     # RL AGENT
     # =====================================================
 
-    state = max(
-        0,
-        min(int(abs(traffic) / 200), 9)
+    state = rl.get_state(
+        abs(traffic)
     )
 
     action_idx = rl.choose_action(state)
@@ -311,7 +271,7 @@ for i in range(min(300, len(df))):
     action = rl.actions[action_idx]
 
     reward = rl.reward(
-        ml_detection == "DDoS",
+        ml_detection == "🚨 DDoS",
         action_idx
     )
 
@@ -327,41 +287,18 @@ for i in range(min(300, len(df))):
     # =====================================================
 
     ml_history.append(
-        1 if ml_detection == "DDoS"
+        1 if ml_detection == "🚨 DDoS"
         else 0
     )
 
     rule_history.append(
-        1 if rule_detection == "DDoS"
+        1 if rule_detection == "🚨 DDoS"
         else 0
     )
 
     attack_prob_history.append(
         attack_prob * 100
     )
-
-    logs.append({
-
-        "Time": i,
-
-        "Traffic":
-            round(float(traffic), 2),
-
-        "ML Detection":
-            ml_detection,
-
-        "Rule Detection":
-            rule_detection,
-
-        "Attack Probability":
-            round(
-                attack_prob * 100,
-                2
-            ),
-
-        "RL Action":
-            action
-    })
 
     # =====================================================
     # METRICS
@@ -393,13 +330,13 @@ for i in range(min(300, len(df))):
     )
 
     # =====================================================
-    # GRAPH UPDATES
+    # SMOOTH GRAPH UPDATES
     # =====================================================
 
     if i % GRAPH_UPDATE_INTERVAL == 0:
 
         # =================================================
-        # LIVE TRAFFIC
+        # TRAFFIC GRAPH
         # =================================================
 
         fig1 = go.Figure()
@@ -413,19 +350,17 @@ for i in range(min(300, len(df))):
         )
 
         fig1.update_layout(
-            title="📈 Live Traffic Flow",
-            xaxis_title="Time",
-            yaxis_title="Traffic",
+            title="📈 Live Traffic",
             height=400
         )
 
-        ml_chart.plotly_chart(
+        traffic_chart.plotly_chart(
             fig1,
             use_container_width=True
         )
 
         # =================================================
-        # ML VS RULE COMPARISON
+        # COMPARISON GRAPH
         # =================================================
 
         fig2 = go.Figure()
@@ -447,9 +382,7 @@ for i in range(min(300, len(df))):
         )
 
         fig2.update_layout(
-            title="🤖 ML vs 📏 Rule-Based Detection",
-            xaxis_title="Time",
-            yaxis_title="Detection",
+            title="🤖 ML vs 📏 Rule-Based",
             height=400
         )
 
@@ -458,111 +391,63 @@ for i in range(min(300, len(df))):
             use_container_width=True
         )
 
-        # =================================================
-        # ATTACK PROBABILITY
-        # =================================================
-
-        fig3 = go.Figure()
-
-        fig3.add_trace(
-            go.Scatter(
-                y=attack_prob_history,
-                mode='lines',
-                name='Attack Probability'
-            )
-        )
-
-        fig3.update_layout(
-            title="🔥 Attack Probability %",
-            xaxis_title="Time",
-            yaxis_title="Probability %",
-            height=400
-        )
-
-        prob_chart.plotly_chart(
-            fig3,
-            use_container_width=True
-        )
-
-        # =================================================
-        # PIE CHART
-        # =================================================
-
-        pie_fig = px.pie(
-            names=[
-                "ML DDoS",
-                "Rule DDoS",
-                "Normal"
-            ],
-            values=[
-                ml_detected,
-                rule_detected,
-                normal_count
-            ],
-            title="🚨 Detection Distribution"
-        )
-
-        pie_fig.update_layout(
-            height=400
-        )
-
-        pie_chart.plotly_chart(
-            pie_fig,
-            use_container_width=True
-        )
-
-        # =================================================
-        # BAR CHART
-        # =================================================
-
-        bar_fig = px.bar(
-            x=[
-                "ML",
-                "Rule-Based"
-            ],
-            y=[
-                ml_detected,
-                rule_detected
-            ],
-            title="📊 Detection Count Comparison"
-        )
-
-        bar_fig.update_layout(
-            height=400
-        )
-
-        bar_chart.plotly_chart(
-            bar_fig,
-            use_container_width=True
-        )
-
     # =====================================================
-    # PAGINATION
+    # SCROLLABLE LIVE DIV
     # =====================================================
 
-    log_df = pd.DataFrame(logs)
+    color = "#ff4b4b"
 
-    total_pages = max(
-        1,
-        (len(log_df) // PAGE_SIZE) + 1
-    )
+    if ml_detection == "✅ Normal":
+        color = "#00c853"
 
-    if page > total_pages:
-        page = total_pages
+    logs_html += f"""
+    <div style="
+        padding:10px;
+        margin-bottom:10px;
+        border-radius:10px;
+        background-color:#1e1e1e;
+        border-left:6px solid {color};
+        color:white;
+    ">
 
-    start_idx = (
-        (page - 1) * PAGE_SIZE
-    )
+    <b>Time:</b> {i}
+    <br>
 
-    end_idx = start_idx + PAGE_SIZE
+    <b>Traffic:</b> {traffic:.2f}
+    <br>
 
-    paginated_df = log_df.iloc[
-        start_idx:end_idx
-    ]
+    <b>ML Detection:</b> {ml_detection}
+    <br>
 
-    log_placeholder.dataframe(
-        paginated_df,
-        use_container_width=True
+    <b>Rule Detection:</b> {rule_detection}
+    <br>
+
+    <b>Attack Probability:</b> {attack_prob*100:.2f}%
+    <br>
+
+    <b>RL Action:</b> {action}
+
+    </div>
+    """
+
+    # =====================================================
+    # SCROLLABLE CONTAINER
+    # =====================================================
+
+    log_div.markdown(
+        f"""
+        <div style="
+            height:500px;
+            overflow-y:scroll;
+            padding:10px;
+            border:2px solid #444;
+            border-radius:10px;
+            background-color:#111111;
+        ">
+        {logs_html}
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
     # =====================================================
