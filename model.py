@@ -67,12 +67,6 @@ class RLAgent:
     def __init__(self):
 
         # =================================================
-        # Q TABLE
-        # =================================================
-
-        self.q_table = np.zeros((10, 3))
-
-        # =================================================
         # ACTIONS
         # =================================================
 
@@ -86,52 +80,45 @@ class RLAgent:
         ]
 
     # =====================================================
-    # GET STATE BASED ON TRAFFIC
+    # GET STATE
     # =====================================================
 
-    def get_state(self, traffic):
+    def get_state(
+
+        self,
+
+        traffic,
+
+        attack_probability
+    ):
 
         traffic = abs(float(traffic))
 
-        # =================================================
-        # VERY LOW TRAFFIC
-        # =================================================
-
-        if traffic < 0.5:
-
-            return 0
+        probability = float(attack_probability)
 
         # =================================================
-        # LOW TRAFFIC
+        # LOW RISK
         # =================================================
 
-        elif traffic < 1.0:
+        if probability < 0.40 and traffic < 1.0:
 
-            return 2
-
-        # =================================================
-        # MEDIUM TRAFFIC
-        # =================================================
-
-        elif traffic < 2.0:
-
-            return 5
+            return "LOW"
 
         # =================================================
-        # HIGH TRAFFIC
+        # MEDIUM RISK
         # =================================================
 
-        elif traffic < 3.5:
+        elif probability < 0.70 and traffic < 2.5:
 
-            return 7
+            return "MEDIUM"
 
         # =================================================
-        # VERY HIGH TRAFFIC
+        # HIGH RISK
         # =================================================
 
         else:
 
-            return 9
+            return "HIGH"
 
     # =====================================================
     # ACTION SELECTION
@@ -140,23 +127,23 @@ class RLAgent:
     def choose_action(self, state):
 
         # =================================================
-        # NORMAL ACTION
+        # SAFE TRAFFIC
         # =================================================
 
-        if state <= 2:
+        if state == "LOW":
 
             return 0
 
         # =================================================
-        # MONITOR ACTION
+        # SUSPICIOUS TRAFFIC
         # =================================================
 
-        elif state <= 6:
+        elif state == "MEDIUM":
 
             return 1
 
         # =================================================
-        # THROTTLE ACTION
+        # ATTACK TRAFFIC
         # =================================================
 
         else:
@@ -175,20 +162,20 @@ class RLAgent:
 
         if not anomaly:
 
-            # NORMAL action
+            # NORMAL ACTION
             if action == 0:
 
-                return 8
+                return 10
 
-            # MONITOR action
+            # MONITOR ACTION
             elif action == 1:
 
                 return 3
 
-            # THROTTLE during normal traffic
+            # THROTTLE ACTION
             else:
 
-                return -5
+                return -10
 
         # =================================================
         # ATTACK TRAFFIC
@@ -196,23 +183,23 @@ class RLAgent:
 
         else:
 
-            # THROTTLE during attack
+            # THROTTLE ACTION
             if action == 2:
 
                 return 10
 
-            # MONITOR during attack
+            # MONITOR ACTION
             elif action == 1:
 
                 return 4
 
-            # NORMAL during attack
+            # NORMAL ACTION
             else:
 
                 return -10
 
     # =====================================================
-    # Q LEARNING UPDATE
+    # UPDATE FUNCTION
     # =====================================================
 
     def update(
@@ -225,34 +212,44 @@ class RLAgent:
 
         reward,
 
-        next_state,
-
-        alpha=0.1,
-
-        gamma=0.9
+        next_state
     ):
 
-        best_next = np.max(
-            self.q_table[next_state]
-        )
+        # =================================================
+        # DETERMINISTIC RL SYSTEM
+        # =================================================
 
-        self.q_table[state, action] += alpha * (
+        # No Q-table update needed because
+        # actions are selected based on
+        # real-time traffic + ML probability
 
-            reward +
-
-            gamma * best_next -
-
-            self.q_table[state, action]
-        )
+        pass
 
     # =====================================================
-    # PRINT Q TABLE
+    # OPTIONAL DEBUG FUNCTION
     # =====================================================
 
-    def print_q_table(self):
+    def print_status(
 
-        print("\n========== Q TABLE ==========")
+        self,
 
-        print(self.q_table)
+        traffic,
 
-        print("=============================\n")
+        probability,
+
+        state,
+
+        action
+    ):
+
+        print("\n==============================")
+
+        print(f"Traffic: {traffic}")
+
+        print(f"Attack Probability: {probability}")
+
+        print(f"State: {state}")
+
+        print(f"Action: {action}")
+
+        print("==============================\n")

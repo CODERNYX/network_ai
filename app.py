@@ -7,7 +7,6 @@ import time
 import os
 
 import plotly.graph_objects as go
-import plotly.express as px
 
 from model import DDoSNet, LSTMModel, RLAgent
 from sklearn.preprocessing import StandardScaler
@@ -17,14 +16,229 @@ from sklearn.preprocessing import StandardScaler
 # =========================================================
 
 st.set_page_config(
-    page_title="AI vs Rule-Based DDoS Dashboard",
-    layout="wide"
+    page_title="AI Security Dashboard",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+# =========================================================
+# RESPONSIVE CSS
+# =========================================================
+
+st.markdown("""
+<style>
+
+/* =====================================================
+GLOBAL
+===================================================== */
+
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    max-width: 100%;
+}
+
+/* =====================================================
+METRIC CARDS
+===================================================== */
+
+[data-testid="metric-container"] {
+
+    background-color: #111111;
+
+    border: 1px solid #333333;
+
+    padding: 12px;
+
+    border-radius: 12px;
+
+    text-align: center;
+}
+
+/* =====================================================
+TABS
+===================================================== */
+
+button[data-baseweb="tab"] {
+
+    font-size: 14px;
+
+    padding: 10px;
+
+    margin: 2px;
+}
+
+/* =====================================================
+GRAPHS
+===================================================== */
+
+.stPlotlyChart {
+
+    border-radius: 12px;
+
+    overflow: hidden;
+}
+
+/* =====================================================
+LOG CONTAINER
+===================================================== */
+
+.scroll-log {
+
+    height: 65vh;
+
+    overflow-y: auto;
+
+    padding: 12px;
+
+    border-radius: 12px;
+
+    background-color: #111111;
+
+    border: 1px solid #444444;
+}
+
+/* =====================================================
+LOG CARDS
+===================================================== */
+
+.log-card {
+
+    padding: 10px;
+
+    margin-bottom: 10px;
+
+    border-radius: 10px;
+
+    background-color: #1e1e1e;
+
+    color: white;
+
+    font-size: 14px;
+}
+
+/* =====================================================
+TABLET
+===================================================== */
+
+@media (max-width: 1024px) {
+
+    h1 {
+        font-size: 28px !important;
+    }
+
+    h2 {
+        font-size: 22px !important;
+    }
+
+    h3 {
+        font-size: 18px !important;
+    }
+
+    button[data-baseweb="tab"] {
+
+        font-size: 12px;
+    }
+
+    .scroll-log {
+
+        height: 60vh;
+    }
+}
+
+/* =====================================================
+MOBILE
+===================================================== */
+
+@media (max-width: 768px) {
+
+    .block-container {
+
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+
+    h1 {
+
+        font-size: 22px !important;
+
+        text-align: center;
+    }
+
+    h2 {
+
+        font-size: 18px !important;
+    }
+
+    h3 {
+
+        font-size: 16px !important;
+    }
+
+    button[data-baseweb="tab"] {
+
+        font-size: 11px;
+
+        padding: 6px;
+    }
+
+    [data-testid="metric-container"] {
+
+        padding: 8px;
+    }
+
+    .scroll-log {
+
+        height: 55vh;
+
+        font-size: 12px;
+    }
+
+    .log-card {
+
+        font-size: 12px;
+    }
+}
+
+/* =====================================================
+SMALL MOBILE
+===================================================== */
+
+@media (max-width: 480px) {
+
+    h1 {
+
+        font-size: 18px !important;
+    }
+
+    button[data-baseweb="tab"] {
+
+        font-size: 10px;
+
+        padding: 4px;
+    }
+
+    .scroll-log {
+
+        height: 50vh;
+    }
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# TITLE
+# =========================================================
 
 st.title("🚀 AI vs Rule-Based Network Security Dashboard")
 
+st.caption("📱 Responsive Dashboard for All Devices")
+
 # =========================================================
-# SIDEBAR CONTROLS
+# SIDEBAR
 # =========================================================
 
 st.sidebar.header("⚙️ Controls")
@@ -40,7 +254,7 @@ GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
     "Graph Refresh Interval",
     1,
     20,
-    8
+    10
 )
 
 # =========================================================
@@ -118,56 +332,46 @@ df[features] = scaler.fit_transform(
 )
 
 # =========================================================
-# TOP NAVIGATION BAR
+# TOP NAVIGATION
 # =========================================================
 
 tabs = st.tabs([
     "📊 Dashboard",
-    "📈 Traffic Graph",
+    "📈 Traffic",
     "🤖 ML vs Rule",
-    "🔥 Attack Probability",
-    "📜 Live Logs"
+    "🔥 Probability",
+    "📜 Logs"
 ])
 
 # =========================================================
-# METRICS
+# DASHBOARD TAB
 # =========================================================
 
 with tabs[0]:
 
     st.subheader("📊 Real-Time Metrics")
 
-    m1, m2, m3, m4, m5 = st.columns(5)
+    top1, top2 = st.columns(2)
 
-    dashboard_placeholder = st.empty()
+    mid1, mid2 = st.columns(2)
+
+    bottom = st.container()
 
 # =========================================================
-# TRAFFIC GRAPH TAB
+# GRAPH TABS
 # =========================================================
 
 with tabs[1]:
 
     traffic_chart = st.empty()
 
-# =========================================================
-# ML VS RULE GRAPH TAB
-# =========================================================
-
 with tabs[2]:
 
     comparison_chart = st.empty()
 
-# =========================================================
-# ATTACK PROBABILITY TAB
-# =========================================================
-
 with tabs[3]:
 
     probability_chart = st.empty()
-
-# =========================================================
-# LIVE LOG TAB
-# =========================================================
 
 with tabs[4]:
 
@@ -212,8 +416,6 @@ for i in range(min(500, len(df))):
     # =====================================================
 
     traffic = row["Flow Bytes/s"]
-
-    traffic += np.random.normal(0, 0.25)
 
     traffic_history.append(
         float(traffic)
@@ -272,6 +474,8 @@ for i in range(min(500, len(df))):
 
         ml_detection = "✅ Normal"
 
+        normal_count += 1
+
     # =====================================================
     # RULE DETECTION
     # =====================================================
@@ -279,7 +483,7 @@ for i in range(min(500, len(df))):
     if (
         row["Flow Packets/s"] > 1.2
         or row["Total Fwd Packets"] > 1.5
-        or abs(traffic) > 1.8
+        or abs(traffic) > 2.0
     ):
 
         rule_detection = "🚨 DDoS"
@@ -290,15 +494,11 @@ for i in range(min(500, len(df))):
 
         rule_detection = "✅ Normal"
 
-        normal_count += 1
-
     # =====================================================
     # RL AGENT
     # =====================================================
 
-    state = rl.get_state(
-        abs(traffic)
-    )
+    state = rl.get_state(traffic)
 
     action_idx = rl.choose_action(state)
 
@@ -340,30 +540,32 @@ for i in range(min(500, len(df))):
 
     with tabs[0]:
 
-        m1.metric(
+        top1.metric(
             "Traffic",
             f"{traffic:.2f}"
         )
 
-        m2.metric(
+        top2.metric(
             "ML Attack %",
             f"{attack_prob*100:.1f}%"
         )
 
-        m3.metric(
+        mid1.metric(
             "ML Detections",
             ml_detected
         )
 
-        m4.metric(
+        mid2.metric(
             "Rule Detections",
             rule_detected
         )
 
-        m5.metric(
-            "RL Action",
-            action
-        )
+        with bottom:
+
+            st.metric(
+                "RL Action",
+                action
+            )
 
     # =====================================================
     # GRAPH UPDATES
@@ -387,7 +589,7 @@ for i in range(min(500, len(df))):
 
         fig1.update_layout(
             title="📈 Live Traffic Flow",
-            height=500
+            height=350
         )
 
         traffic_chart.plotly_chart(
@@ -418,8 +620,8 @@ for i in range(min(500, len(df))):
         )
 
         fig2.update_layout(
-            title="🤖 ML vs 📏 Rule-Based Detection",
-            height=500
+            title="🤖 ML vs 📏 Rule-Based",
+            height=350
         )
 
         comparison_chart.plotly_chart(
@@ -428,7 +630,7 @@ for i in range(min(500, len(df))):
         )
 
         # =================================================
-        # ATTACK PROBABILITY
+        # PROBABILITY GRAPH
         # =================================================
 
         fig3 = go.Figure()
@@ -443,7 +645,7 @@ for i in range(min(500, len(df))):
 
         fig3.update_layout(
             title="🔥 Attack Probability %",
-            height=500
+            height=350
         )
 
         probability_chart.plotly_chart(
@@ -452,7 +654,7 @@ for i in range(min(500, len(df))):
         )
 
     # =====================================================
-    # LIVE LOG CONSOLE
+    # LOG DIV
     # =====================================================
 
     color = "#ff4b4b"
@@ -462,14 +664,8 @@ for i in range(min(500, len(df))):
 
     logs_html += f"""
 
-    <div style="
-        padding:10px;
-        margin-bottom:10px;
-        border-radius:10px;
-        background-color:#1e1e1e;
-        border-left:6px solid {color};
-        color:white;
-    ">
+    <div class="log-card"
+    style="border-left:6px solid {color};">
 
     <b>Time:</b> {i}
     <br>
@@ -493,14 +689,7 @@ for i in range(min(500, len(df))):
 
     log_div.markdown(
         f"""
-        <div style="
-            height:600px;
-            overflow-y:scroll;
-            padding:10px;
-            border:2px solid #444;
-            border-radius:10px;
-            background-color:#111111;
-        ">
+        <div class="scroll-log">
         {logs_html}
         </div>
         """,
