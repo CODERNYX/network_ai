@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-import numpy as np
 
 # =========================================================
-# 1. DDoS DETECTION MODEL
+# DDoS DETECTION MODEL
 # =========================================================
 
 class DDoSNet(nn.Module):
@@ -22,7 +21,7 @@ class DDoSNet(nn.Module):
 
             nn.ReLU(),
 
-            nn.Linear(32, 2)   # Normal / Attack
+            nn.Linear(32, 2)
         )
 
     def forward(self, x):
@@ -30,7 +29,7 @@ class DDoSNet(nn.Module):
         return self.model(x)
 
 # =========================================================
-# 2. TRAFFIC PREDICTION MODEL
+# LSTM TRAFFIC PREDICTION
 # =========================================================
 
 class LSTMModel(nn.Module):
@@ -59,16 +58,12 @@ class LSTMModel(nn.Module):
         return self.fc(out[:, -1, :])
 
 # =========================================================
-# 3. REINFORCEMENT LEARNING AGENT
+# RL AGENT
 # =========================================================
 
 class RLAgent:
 
     def __init__(self):
-
-        # =================================================
-        # ACTIONS
-        # =================================================
 
         self.actions = [
 
@@ -96,25 +91,19 @@ class RLAgent:
 
         probability = float(attack_probability)
 
-        # =================================================
-        # LOW RISK
-        # =================================================
+        # SAFE TRAFFIC
 
         if probability < 0.40 and traffic < 1.0:
 
             return "LOW"
 
-        # =================================================
-        # MEDIUM RISK
-        # =================================================
+        # SUSPICIOUS TRAFFIC
 
         elif probability < 0.70 and traffic < 2.5:
 
             return "MEDIUM"
 
-        # =================================================
-        # HIGH RISK
-        # =================================================
+        # DANGEROUS TRAFFIC
 
         else:
 
@@ -126,32 +115,20 @@ class RLAgent:
 
     def choose_action(self, state):
 
-        # =================================================
-        # SAFE TRAFFIC
-        # =================================================
-
         if state == "LOW":
 
             return 0
 
-        # =================================================
-        # MONITOR TRAFFIC
-        # =================================================
-
         elif state == "MEDIUM":
 
             return 1
-
-        # =================================================
-        # DANGEROUS TRAFFIC
-        # =================================================
 
         else:
 
             return 2
 
     # =====================================================
-    # REWARD FUNCTION
+    # REWARD
     # =====================================================
 
     def reward(self, anomaly, action):
@@ -185,7 +162,7 @@ class RLAgent:
                 return -10
 
     # =====================================================
-    # UPDATE FUNCTION
+    # UPDATE
     # =====================================================
 
     def update(
@@ -201,5 +178,4 @@ class RLAgent:
         next_state
     ):
 
-        # Deterministic RL
         pass
