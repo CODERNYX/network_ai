@@ -66,12 +66,16 @@ class RLAgent:
 
     def __init__(self):
 
-        # Q-table:
-        # 10 states
-        # 3 actions
+        # =================================================
+        # Q TABLE
+        # =================================================
+
         self.q_table = np.zeros((10, 3))
 
-        # Available actions
+        # =================================================
+        # ACTIONS
+        # =================================================
+
         self.actions = [
 
             "NORMAL",
@@ -92,27 +96,34 @@ class RLAgent:
         return max(0, min(state, 9))
 
     # =====================================================
-    # EPSILON-GREEDY ACTION SELECTION
+    # DETERMINISTIC ACTION SELECTION
     # =====================================================
 
-    def choose_action(self, state, epsilon=0.3):
+    def choose_action(self, state):
 
-        # Exploration:
-        # randomly try actions
+        # =================================================
+        # LOW TRAFFIC
+        # =================================================
 
-        if np.random.rand() < epsilon:
+        if state <= 2:
 
-            return np.random.randint(
-                0,
-                len(self.actions)
-            )
+            return 0      # NORMAL
 
-        # Exploitation:
-        # choose best known action
+        # =================================================
+        # MEDIUM TRAFFIC
+        # =================================================
 
-        return np.argmax(
-            self.q_table[state]
-        )
+        elif state <= 5:
+
+            return 1      # MONITOR
+
+        # =================================================
+        # HIGH TRAFFIC
+        # =================================================
+
+        else:
+
+            return 2      # THROTTLE
 
     # =====================================================
     # REWARD FUNCTION
@@ -126,17 +137,14 @@ class RLAgent:
 
         if not anomaly:
 
-            # NORMAL action during normal traffic
             if action == 0:
 
                 return 8
 
-            # MONITOR action during normal traffic
             elif action == 1:
 
                 return 3
 
-            # THROTTLE during normal traffic
             else:
 
                 return -5
@@ -147,23 +155,20 @@ class RLAgent:
 
         else:
 
-            # THROTTLE during attack
             if action == 2:
 
                 return 10
 
-            # MONITOR during attack
             elif action == 1:
 
                 return 4
 
-            # NORMAL during attack
             else:
 
                 return -10
 
     # =====================================================
-    # Q-LEARNING UPDATE
+    # Q LEARNING UPDATE
     # =====================================================
 
     def update(
@@ -197,8 +202,7 @@ class RLAgent:
         )
 
     # =====================================================
-    # OPTIONAL:
-    # VIEW Q-TABLE
+    # PRINT Q TABLE
     # =====================================================
 
     def print_q_table(self):
