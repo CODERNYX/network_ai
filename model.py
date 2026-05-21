@@ -78,14 +78,7 @@ class RLAgent:
     # GET STATE
     # =====================================================
 
-    def get_state(
-
-        self,
-
-        traffic,
-
-        attack_probability
-    ):
+    def get_state(self,traffic,attack_probability):
 
         traffic = abs(float(traffic))
 
