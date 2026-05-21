@@ -86,44 +86,82 @@ class RLAgent:
         ]
 
     # =====================================================
-    # GET STATE
+    # GET STATE BASED ON TRAFFIC
     # =====================================================
 
     def get_state(self, traffic):
 
-        state = int(abs(traffic) / 200)
+        traffic = abs(float(traffic))
 
-        return max(0, min(state, 9))
+        # =================================================
+        # VERY LOW TRAFFIC
+        # =================================================
 
-    # =====================================================
-    # DETERMINISTIC ACTION SELECTION
-    # =====================================================
+        if traffic < 0.5:
 
-    def choose_action(self, state):
+            return 0
 
         # =================================================
         # LOW TRAFFIC
         # =================================================
 
-        if state <= 2:
+        elif traffic < 1.0:
 
-            return 0      # NORMAL
+            return 2
 
         # =================================================
         # MEDIUM TRAFFIC
         # =================================================
 
-        elif state <= 5:
+        elif traffic < 2.0:
 
-            return 1      # MONITOR
+            return 5
 
         # =================================================
         # HIGH TRAFFIC
         # =================================================
 
+        elif traffic < 3.5:
+
+            return 7
+
+        # =================================================
+        # VERY HIGH TRAFFIC
+        # =================================================
+
         else:
 
-            return 2      # THROTTLE
+            return 9
+
+    # =====================================================
+    # ACTION SELECTION
+    # =====================================================
+
+    def choose_action(self, state):
+
+        # =================================================
+        # NORMAL ACTION
+        # =================================================
+
+        if state <= 2:
+
+            return 0
+
+        # =================================================
+        # MONITOR ACTION
+        # =================================================
+
+        elif state <= 6:
+
+            return 1
+
+        # =================================================
+        # THROTTLE ACTION
+        # =================================================
+
+        else:
+
+            return 2
 
     # =====================================================
     # REWARD FUNCTION
@@ -137,14 +175,17 @@ class RLAgent:
 
         if not anomaly:
 
+            # NORMAL action
             if action == 0:
 
                 return 8
 
+            # MONITOR action
             elif action == 1:
 
                 return 3
 
+            # THROTTLE during normal traffic
             else:
 
                 return -5
@@ -155,14 +196,17 @@ class RLAgent:
 
         else:
 
+            # THROTTLE during attack
             if action == 2:
 
                 return 10
 
+            # MONITOR during attack
             elif action == 1:
 
                 return 4
 
+            # NORMAL during attack
             else:
 
                 return -10
@@ -207,6 +251,8 @@ class RLAgent:
 
     def print_q_table(self):
 
-        print("\n===== Q TABLE =====")
+        print("\n========== Q TABLE ==========")
 
         print(self.q_table)
+
+        print("=============================\n")
