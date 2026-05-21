@@ -24,7 +24,7 @@ st.set_page_config(
 st.title("🚀 AI-Driven Network Traffic Monitoring & DDoS Detection")
 
 # =========================================================
-# DEBUG INFO
+# SIDEBAR INFO
 # =========================================================
 
 st.sidebar.subheader("📁 System Info")
@@ -32,7 +32,7 @@ st.sidebar.subheader("📁 System Info")
 st.sidebar.write("Current Directory:")
 st.sidebar.write(os.getcwd())
 
-st.sidebar.write("Files:")
+st.sidebar.write("Available Files:")
 st.sidebar.write(os.listdir())
 
 # =========================================================
@@ -42,9 +42,14 @@ st.sidebar.write(os.listdir())
 @st.cache_data
 def load_data():
 
-    df = pd.read_parquet("clean_ddos_dataset.parquet")
+    df = pd.read_parquet(
+        "clean_ddos_dataset.parquet"
+    )
 
-    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.replace(
+        [np.inf, -np.inf],
+        np.nan
+    )
 
     df = df.dropna()
 
@@ -93,17 +98,22 @@ features = [
     "Flow Packets/s"
 ]
 
-features = [f for f in features if f in df.columns]
+features = [
+    f for f in features
+    if f in df.columns
+]
 
 scaler = StandardScaler()
 
-df[features] = scaler.fit_transform(df[features])
+df[features] = scaler.fit_transform(
+    df[features]
+)
 
 # =========================================================
 # SIDEBAR CONTROLS
 # =========================================================
 
-st.sidebar.subheader("⚙️ Dashboard Controls")
+st.sidebar.subheader("⚙️ Controls")
 
 speed = st.sidebar.slider(
     "Simulation Speed",
@@ -119,11 +129,22 @@ PAGE_SIZE = st.sidebar.slider(
     10
 )
 
+GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
+    "Graph Refresh Rate",
+    1,
+    20,
+    10
+)
+
 # =========================================================
-# PLACEHOLDERS
+# METRICS
 # =========================================================
 
 metric1, metric2, metric3, metric4 = st.columns(4)
+
+# =========================================================
+# PLACEHOLDERS
+# =========================================================
 
 traffic_graph = st.empty()
 
@@ -137,7 +158,11 @@ pie_chart = col1.empty()
 
 bar_chart = col2.empty()
 
-st.subheader("📜 Network Logs")
+# =========================================================
+# LOG SECTION
+# =========================================================
+
+st.subheader("📜 Network Security Logs")
 
 log_placeholder = st.empty()
 
@@ -162,7 +187,7 @@ seq = []
 SEQ_LEN = 10
 
 # =========================================================
-# PAGE CONTROL (OUTSIDE LOOP)
+# PAGINATION
 # =========================================================
 
 page = st.sidebar.number_input(
@@ -216,7 +241,7 @@ for i in range(min(300, len(df))):
         pred = 0
 
     # =====================================================
-    # DDoS MODEL INPUT
+    # DDoS MODEL
     # =====================================================
 
     features_input = torch.tensor([
@@ -227,17 +252,14 @@ for i in range(min(300, len(df))):
         row["Flow Packets/s"]
     ], dtype=torch.float32).unsqueeze(0)
 
-    # =====================================================
-    # MODEL OUTPUT
-    # =====================================================
-
     out = ddos_model(features_input)
 
-    probabilities = F.softmax(out, dim=1)
+    probabilities = F.softmax(
+        out,
+        dim=1
+    )
 
     attack_prob = probabilities[0][1].item()
-
-    normal_prob = probabilities[0][0].item()
 
     # =====================================================
     # SMART DETECTION LOGIC
@@ -272,7 +294,10 @@ for i in range(min(300, len(df))):
 
     action = rl.actions[action_idx]
 
-    reward = rl.reward(anomaly, action_idx)
+    reward = rl.reward(
+        anomaly,
+        action_idx
+    )
 
     rl.update(
         state,
@@ -285,29 +310,39 @@ for i in range(min(300, len(df))):
     # STORE DATA
     # =====================================================
 
-    traffic_history.append(float(traffic))
+    traffic_history.append(
+        float(traffic)
+    )
 
-    prediction_history.append(float(pred))
+    prediction_history.append(
+        float(pred)
+    )
 
     attack_prob_history.append(
         attack_prob * 100
     )
 
     attack_history.append(
-        "DDoS" if anomaly else "Normal"
+        "DDoS"
+        if anomaly
+        else "Normal"
     )
 
     action_history.append(action)
 
     logs.append({
         "Time": i,
-        "Traffic": round(float(traffic), 2),
-        "Prediction": round(float(pred), 2),
-        "Attack Probability": round(
-            attack_prob * 100,
-            2
-        ),
-        "RL Action": action,
+        "Traffic":
+            round(float(traffic), 2),
+        "Prediction":
+            round(float(pred), 2),
+        "Attack Probability":
+            round(
+                attack_prob * 100,
+                2
+            ),
+        "RL Action":
+            action,
         "Status":
             "🚨 DDoS"
             if anomaly
@@ -335,124 +370,145 @@ for i in range(min(300, len(df))):
 
     if anomaly:
 
-        metric4.error("🚨 ATTACK")
+        metric4.error(
+            "🚨 ATTACK"
+        )
 
     else:
 
-        metric4.success("✅ NORMAL")
-
-    # =====================================================
-    # TRAFFIC GRAPH
-    # =====================================================
-
-    fig1 = go.Figure()
-
-    fig1.add_trace(
-        go.Scatter(
-            y=traffic_history,
-            mode='lines',
-            name='Traffic'
+        metric4.success(
+            "✅ NORMAL"
         )
-    )
-
-    fig1.update_layout(
-        title="📈 Live Traffic Flow",
-        xaxis_title="Time",
-        yaxis_title="Traffic"
-    )
-
-    traffic_graph.plotly_chart(
-        fig1,
-        use_container_width=True
-    )
 
     # =====================================================
-    # PREDICTION GRAPH
+    # SMOOTH GRAPH UPDATES
     # =====================================================
 
-    fig2 = go.Figure()
+    if i % GRAPH_UPDATE_INTERVAL == 0:
 
-    fig2.add_trace(
-        go.Scatter(
-            y=prediction_history,
-            mode='lines',
-            name='Prediction'
+        # =================================================
+        # TRAFFIC GRAPH
+        # =================================================
+
+        traffic_fig = go.Figure()
+
+        traffic_fig.add_trace(
+            go.Scatter(
+                y=traffic_history,
+                mode='lines',
+                name='Traffic'
+            )
         )
-    )
 
-    fig2.update_layout(
-        title="📉 LSTM Traffic Prediction",
-        xaxis_title="Time",
-        yaxis_title="Prediction"
-    )
-
-    prediction_graph.plotly_chart(
-        fig2,
-        use_container_width=True
-    )
-
-    # =====================================================
-    # ATTACK PROBABILITY GRAPH
-    # =====================================================
-
-    fig3 = go.Figure()
-
-    fig3.add_trace(
-        go.Scatter(
-            y=attack_prob_history,
-            mode='lines',
-            name='Attack Probability'
+        traffic_fig.update_layout(
+            title="📈 Live Traffic Flow",
+            xaxis_title="Time",
+            yaxis_title="Traffic",
+            height=400
         )
-    )
 
-    fig3.update_layout(
-        title="🔥 Attack Probability %",
-        xaxis_title="Time",
-        yaxis_title="Probability %"
-    )
+        traffic_graph.plotly_chart(
+            traffic_fig,
+            use_container_width=True
+        )
 
-    probability_graph.plotly_chart(
-        fig3,
-        use_container_width=True
-    )
+        # =================================================
+        # PREDICTION GRAPH
+        # =================================================
 
-    # =====================================================
-    # ATTACK DISTRIBUTION PIE CHART
-    # =====================================================
+        prediction_fig = go.Figure()
 
-    attack_df = pd.DataFrame({
-        "Status": attack_history
-    })
+        prediction_fig.add_trace(
+            go.Scatter(
+                y=prediction_history,
+                mode='lines',
+                name='Prediction'
+            )
+        )
 
-    pie_fig = px.pie(
-        attack_df,
-        names="Status",
-        title="🚨 Attack Distribution"
-    )
+        prediction_fig.update_layout(
+            title="📉 LSTM Prediction",
+            xaxis_title="Time",
+            yaxis_title="Prediction",
+            height=400
+        )
 
-    pie_chart.plotly_chart(
-        pie_fig,
-        use_container_width=True
-    )
+        prediction_graph.plotly_chart(
+            prediction_fig,
+            use_container_width=True
+        )
 
-    # =====================================================
-    # RL ACTION DISTRIBUTION
-    # =====================================================
+        # =================================================
+        # ATTACK PROBABILITY GRAPH
+        # =================================================
 
-    action_df = pd.DataFrame({
-        "Action": action_history
-    })
+        prob_fig = go.Figure()
 
-    bar_fig = px.histogram(
-        action_df,
-        x="Action",
-        title="🤖 RL Action Distribution"
-    )
+        prob_fig.add_trace(
+            go.Scatter(
+                y=attack_prob_history,
+                mode='lines',
+                name='Attack Probability'
+            )
+        )
 
-    bar_chart.plotly_chart(
-        bar_fig,
-        use_container_width=True
-    )
+        prob_fig.update_layout(
+            title="🔥 Attack Probability %",
+            xaxis_title="Time",
+            yaxis_title="Probability %",
+            height=400
+        )
+
+        probability_graph.plotly_chart(
+            prob_fig,
+            use_container_width=True
+        )
+
+        # =================================================
+        # PIE CHART
+        # =================================================
+
+        attack_counts = pd.Series(
+            attack_history
+        ).value_counts()
+
+        pie_fig = px.pie(
+            values=attack_counts.values,
+            names=attack_counts.index,
+            title="🚨 Attack Distribution"
+        )
+
+        pie_fig.update_layout(
+            height=400
+        )
+
+        pie_chart.plotly_chart(
+            pie_fig,
+            use_container_width=True
+        )
+
+        # =================================================
+        # BAR CHART
+        # =================================================
+
+        action_counts = pd.Series(
+            action_history
+        ).value_counts()
+
+        bar_fig = px.bar(
+            x=action_counts.index,
+            y=action_counts.values,
+            title="🤖 RL Action Distribution"
+        )
+
+        bar_fig.update_layout(
+            height=400
+        )
+
+        bar_chart.plotly_chart(
+            bar_fig,
+            use_container_width=True
+        )
 
     # =====================================================
     # LOG PAGINATION
@@ -468,7 +524,9 @@ for i in range(min(300, len(df))):
     if page > total_pages:
         page = total_pages
 
-    start_idx = (page - 1) * PAGE_SIZE
+    start_idx = (
+        (page - 1) * PAGE_SIZE
+    )
 
     end_idx = start_idx + PAGE_SIZE
 
@@ -485,4 +543,4 @@ for i in range(min(300, len(df))):
     # DELAY
     # =====================================================
 
-    time.sleep(speed)
+    time.sleep(max(speed, 0.05))
