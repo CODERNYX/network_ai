@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 # =========================================================
-# DDoS DETECTION MODEL
+# 1. DDoS DETECTION MODEL
 # =========================================================
 
 class DDoSNet(nn.Module):
@@ -21,7 +22,7 @@ class DDoSNet(nn.Module):
 
             nn.ReLU(),
 
-            nn.Linear(32, 2)
+            nn.Linear(32, 2)   # Normal / Attack
         )
 
     def forward(self, x):
@@ -29,7 +30,7 @@ class DDoSNet(nn.Module):
         return self.model(x)
 
 # =========================================================
-# LSTM TRAFFIC PREDICTION
+# 2. TRAFFIC PREDICTION MODEL
 # =========================================================
 
 class LSTMModel(nn.Module):
@@ -58,12 +59,22 @@ class LSTMModel(nn.Module):
         return self.fc(out[:, -1, :])
 
 # =========================================================
-# RL AGENT
+# 3. REINFORCEMENT LEARNING AGENT
 # =========================================================
 
 class RLAgent:
 
     def __init__(self):
+
+        # =================================================
+        # Q TABLE
+        # =================================================
+
+        self.q_table = np.zeros((10, 3))
+
+        # =================================================
+        # ACTIONS
+        # =================================================
 
         self.actions = [
 
@@ -75,87 +86,133 @@ class RLAgent:
         ]
 
     # =====================================================
-    # GET STATE
+    # GET STATE BASED ON TRAFFIC
     # =====================================================
 
-    def get_state(self,traffic,attack_probability):
+    def get_state(self, traffic):
 
         traffic = abs(float(traffic))
 
-        probability = float(attack_probability)
+        # =================================================
+        # VERY LOW TRAFFIC
+        # =================================================
 
-        # SAFE TRAFFIC
+        if traffic < 0.5:
 
-        if probability < 0.40 and traffic < 1.0:
+            return 0
 
-            return "LOW"
+        # =================================================
+        # LOW TRAFFIC
+        # =================================================
 
-        # SUSPICIOUS TRAFFIC
+        elif traffic < 1.0:
 
-        elif probability < 0.70 and traffic < 2.5:
+            return 2
 
-            return "MEDIUM"
+        # =================================================
+        # MEDIUM TRAFFIC
+        # =================================================
 
-        # DANGEROUS TRAFFIC
+        elif traffic < 2.0:
+
+            return 5
+
+        # =================================================
+        # HIGH TRAFFIC
+        # =================================================
+
+        elif traffic < 3.5:
+
+            return 7
+
+        # =================================================
+        # VERY HIGH TRAFFIC
+        # =================================================
 
         else:
 
-            return "HIGH"
+            return 9
 
     # =====================================================
-    # CHOOSE ACTION
+    # ACTION SELECTION
     # =====================================================
 
     def choose_action(self, state):
 
-        if state == "LOW":
+        # =================================================
+        # NORMAL ACTION
+        # =================================================
+
+        if state <= 2:
 
             return 0
 
-        elif state == "MEDIUM":
+        # =================================================
+        # MONITOR ACTION
+        # =================================================
+
+        elif state <= 6:
 
             return 1
+
+        # =================================================
+        # THROTTLE ACTION
+        # =================================================
 
         else:
 
             return 2
 
     # =====================================================
-    # REWARD
+    # REWARD FUNCTION
     # =====================================================
 
     def reward(self, anomaly, action):
 
+        # =================================================
+        # NORMAL TRAFFIC
+        # =================================================
+
         if not anomaly:
 
+            # NORMAL action
             if action == 0:
 
-                return 10
+                return 8
 
+            # MONITOR action
             elif action == 1:
 
                 return 3
 
+            # THROTTLE during normal traffic
             else:
 
-                return -10
+                return -5
+
+        # =================================================
+        # ATTACK TRAFFIC
+        # =================================================
 
         else:
 
+            # THROTTLE during attack
             if action == 2:
 
                 return 10
 
+            # MONITOR during attack
             elif action == 1:
 
                 return 4
 
+            # NORMAL during attack
             else:
 
                 return -10
 
     # =====================================================
-    # UPDATE
+    # Q LEARNING UPDATE
     # =====================================================
 
     def update(
@@ -168,7 +225,34 @@ class RLAgent:
 
         reward,
 
-        next_state
+        next_state,
+
+        alpha=0.1,
+
+        gamma=0.9
     ):
 
-        pass
+        best_next = np.max(
+            self.q_table[next_state]
+        )
+
+        self.q_table[state, action] += alpha * (
+
+            reward +
+
+            gamma * best_next -
+
+            self.q_table[state, action]
+        )
+
+    # =====================================================
+    # PRINT Q TABLE
+    # =====================================================
+
+    def print_q_table(self):
+
+        print("\n========== Q TABLE ==========")
+
+        print(self.q_table)
+
+        print("=============================\n")
