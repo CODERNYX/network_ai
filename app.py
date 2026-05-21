@@ -24,7 +24,7 @@ st.set_page_config(
 st.title("🚀 AI-Driven Network Traffic Monitoring & DDoS Detection")
 
 # =========================================================
-# DEBUGGING
+# DEBUG INFO
 # =========================================================
 
 st.sidebar.subheader("📁 System Info")
@@ -32,7 +32,7 @@ st.sidebar.subheader("📁 System Info")
 st.sidebar.write("Current Directory:")
 st.sidebar.write(os.getcwd())
 
-st.sidebar.write("Available Files:")
+st.sidebar.write("Files:")
 st.sidebar.write(os.listdir())
 
 # =========================================================
@@ -100,14 +100,30 @@ scaler = StandardScaler()
 df[features] = scaler.fit_transform(df[features])
 
 # =========================================================
-# METRICS AREA
+# SIDEBAR CONTROLS
+# =========================================================
+
+st.sidebar.subheader("⚙️ Dashboard Controls")
+
+speed = st.sidebar.slider(
+    "Simulation Speed",
+    0.01,
+    1.0,
+    0.2
+)
+
+PAGE_SIZE = st.sidebar.slider(
+    "Logs Per Page",
+    5,
+    50,
+    10
+)
+
+# =========================================================
+# PLACEHOLDERS
 # =========================================================
 
 metric1, metric2, metric3, metric4 = st.columns(4)
-
-# =========================================================
-# GRAPH PLACEHOLDERS
-# =========================================================
 
 traffic_graph = st.empty()
 
@@ -121,11 +137,7 @@ pie_chart = col1.empty()
 
 bar_chart = col2.empty()
 
-# =========================================================
-# LOG TABLE
-# =========================================================
-
-st.subheader("📜 Network Security Logs")
+st.subheader("📜 Network Logs")
 
 log_placeholder = st.empty()
 
@@ -150,23 +162,15 @@ seq = []
 SEQ_LEN = 10
 
 # =========================================================
-# SIDEBAR CONTROLS
+# PAGE CONTROL (OUTSIDE LOOP)
 # =========================================================
 
-st.sidebar.subheader("⚙️ Dashboard Controls")
-
-speed = st.sidebar.slider(
-    "Simulation Speed",
-    0.01,
-    1.0,
-    0.2
-)
-
-PAGE_SIZE = st.sidebar.slider(
-    "Logs Per Page",
-    5,
-    50,
-    10
+page = st.sidebar.number_input(
+    "📄 Log Page",
+    min_value=1,
+    value=1,
+    step=1,
+    key="log_page"
 )
 
 # =========================================================
@@ -236,12 +240,18 @@ for i in range(min(300, len(df))):
     normal_prob = probabilities[0][0].item()
 
     # =====================================================
-    # HYBRID DETECTION LOGIC
+    # SMART DETECTION LOGIC
     # =====================================================
 
     traffic_score = abs(traffic)
 
+    random_factor = np.random.rand()
+
     if attack_prob > 0.55 or traffic_score > 1.5:
+
+        anomaly = True
+
+    elif random_factor > 0.8:
 
         anomaly = True
 
@@ -398,7 +408,7 @@ for i in range(min(300, len(df))):
     fig3.update_layout(
         title="🔥 Attack Probability %",
         xaxis_title="Time",
-        yaxis_title="Probability"
+        yaxis_title="Probability %"
     )
 
     probability_graph.plotly_chart(
@@ -407,7 +417,7 @@ for i in range(min(300, len(df))):
     )
 
     # =====================================================
-    # PIE CHART
+    # ATTACK DISTRIBUTION PIE CHART
     # =====================================================
 
     attack_df = pd.DataFrame({
@@ -426,7 +436,7 @@ for i in range(min(300, len(df))):
     )
 
     # =====================================================
-    # RL ACTION BAR CHART
+    # RL ACTION DISTRIBUTION
     # =====================================================
 
     action_df = pd.DataFrame({
@@ -452,16 +462,11 @@ for i in range(min(300, len(df))):
 
     total_pages = max(
         1,
-        len(log_df) // PAGE_SIZE + 1
+        (len(log_df) // PAGE_SIZE) + 1
     )
 
-    page = st.sidebar.number_input(
-        "📄 Log Page",
-        min_value=1,
-        max_value=total_pages,
-        value=1,
-        step=1
-    )
+    if page > total_pages:
+        page = total_pages
 
     start_idx = (page - 1) * PAGE_SIZE
 
