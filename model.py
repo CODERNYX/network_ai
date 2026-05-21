@@ -121,7 +121,7 @@ class RLAgent:
             return "HIGH"
 
     # =====================================================
-    # ACTION SELECTION
+    # CHOOSE ACTION
     # =====================================================
 
     def choose_action(self, state):
@@ -135,7 +135,7 @@ class RLAgent:
             return 0
 
         # =================================================
-        # SUSPICIOUS TRAFFIC
+        # MONITOR TRAFFIC
         # =================================================
 
         elif state == "MEDIUM":
@@ -143,7 +143,7 @@ class RLAgent:
             return 1
 
         # =================================================
-        # ATTACK TRAFFIC
+        # DANGEROUS TRAFFIC
         # =================================================
 
         else:
@@ -156,44 +156,30 @@ class RLAgent:
 
     def reward(self, anomaly, action):
 
-        # =================================================
-        # NORMAL TRAFFIC
-        # =================================================
-
         if not anomaly:
 
-            # NORMAL ACTION
             if action == 0:
 
                 return 10
 
-            # MONITOR ACTION
             elif action == 1:
 
                 return 3
 
-            # THROTTLE ACTION
             else:
 
                 return -10
 
-        # =================================================
-        # ATTACK TRAFFIC
-        # =================================================
-
         else:
 
-            # THROTTLE ACTION
             if action == 2:
 
                 return 10
 
-            # MONITOR ACTION
             elif action == 1:
 
                 return 4
 
-            # NORMAL ACTION
             else:
 
                 return -10
@@ -215,41 +201,5 @@ class RLAgent:
         next_state
     ):
 
-        # =================================================
-        # DETERMINISTIC RL SYSTEM
-        # =================================================
-
-        # No Q-table update needed because
-        # actions are selected based on
-        # real-time traffic + ML probability
-
+        # Deterministic RL
         pass
-
-    # =====================================================
-    # OPTIONAL DEBUG FUNCTION
-    # =====================================================
-
-    def print_status(
-
-        self,
-
-        traffic,
-
-        probability,
-
-        state,
-
-        action
-    ):
-
-        print("\n==============================")
-
-        print(f"Traffic: {traffic}")
-
-        print(f"Attack Probability: {probability}")
-
-        print(f"State: {state}")
-
-        print(f"Action: {action}")
-
-        print("==============================\n")
