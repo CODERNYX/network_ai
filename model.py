@@ -89,49 +89,25 @@ class RLAgent:
     # GET STATE BASED ON TRAFFIC
     # =====================================================
 
-    def get_state(self, traffic):
+    def get_state(self, traffic, attack_prob):
 
         traffic = abs(float(traffic))
 
-        # =================================================
-        # VERY LOW TRAFFIC
-        # =================================================
-
         if traffic < 0.5:
-
-            return 0
-
-        # =================================================
-        # LOW TRAFFIC
-        # =================================================
-
+            traffic_state = 0
         elif traffic < 1.0:
-
-            return 2
-
-        # =================================================
-        # MEDIUM TRAFFIC
-        # =================================================
-
+            traffic_state = 2
         elif traffic < 2.0:
-
-            return 5
-
-        # =================================================
-        # HIGH TRAFFIC
-        # =================================================
-
+            traffic_state = 5
         elif traffic < 3.5:
-
-            return 7
-
-        # =================================================
-        # VERY HIGH TRAFFIC
-        # =================================================
-
+            traffic_state = 7
         else:
+            traffic_state = 9
 
-            return 9
+        if attack_prob > 0.7:
+            traffic_state = min(9, traffic_state + 1)
+
+        return traffic_state
 
     # =====================================================
     # ACTION SELECTION
