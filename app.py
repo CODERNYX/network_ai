@@ -46,86 +46,94 @@ st.set_page_config(
 # RESPONSIVE CSS
 # =========================================================
 
-st.markdown(
-"""
+st.markdown("""
 <style>
 
+/* LOG PANEL */
 
-.block-container {
+.log-container {
 
-    padding-top:1rem;
+    height: 65vh;
 
-    padding-left:1rem;
+    overflow-y: auto;
 
-    padding-right:1rem;
+    padding: 15px;
 
-}
+    background-color: #0e1117;
 
+    border-radius: 15px;
 
-[data-testid="metric-container"] {
-
-    background:#111111;
-
-    border:1px solid #333333;
-
-    padding:12px;
-
-    border-radius:12px;
-
-    text-align:center;
+    border: 1px solid #333;
 
 }
 
 
-
-.stPlotlyChart {
-
-    border-radius:12px;
-
-}
-
-
-.scroll-log {
-
-    height:65vh;
-
-    overflow-y:auto;
-
-    padding:12px;
-
-    background:#111111;
-
-    border-radius:12px;
-
-    border:1px solid #444444;
-
-}
-
+/* Individual log card */
 
 .log-card {
 
-    padding:10px;
+    background-color: #161b22;
 
-    margin-bottom:10px;
+    padding: 14px;
 
-    background:#1e1e1e;
+    margin-bottom: 12px;
 
-    color:white;
+    border-radius: 12px;
 
-    border-radius:10px;
+    color: #ffffff;
 
-    font-size:14px;
+    font-size: 14px;
+
+    line-height: 1.6;
+
+    box-shadow: 0px 2px 6px rgba(0,0,0,0.3);
+
+}
+
+
+/* Labels */
+
+.log-title {
+
+    font-size: 16px;
+
+    font-weight: bold;
+
+    margin-bottom: 8px;
+
+}
+
+
+.status-normal {
+
+    color:#00e676;
+
+    font-weight:bold;
+
+}
+
+
+.status-alert {
+
+    color:#ff5252;
+
+    font-weight:bold;
+
+}
+
+
+.rl-action {
+
+    color:#40c4ff;
+
+    font-weight:bold;
 
 }
 
 
 </style>
 
-""",
-
-unsafe_allow_html=True
-
-)
+""", unsafe_allow_html=True)
 
 
 
