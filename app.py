@@ -1,551 +1,694 @@
-import torch
-import torch.nn as nn
+import streamlit as st
+import pandas as pd
 import numpy as np
+import torch
+import torch.nn.functional as F
+import time
+import importlib
 
+import plotly.graph_objects as go
 
 # =========================================================
-# 1. DDOS DETECTION MODEL
+# FORCE RELOAD MODEL
 # =========================================================
 
-class DDoSNet(nn.Module):
+import model
 
-    def __init__(self, input_size=5):
+importlib.reload(model)
 
-        super().__init__()
+DDoSNet = model.DDoSNet
+LSTMModel = model.LSTMModel
+RLAgent = model.RLAgent
 
-        self.model = nn.Sequential(
+from sklearn.preprocessing import StandardScaler
 
-            nn.Linear(input_size, 64),
+# =========================================================
+# PAGE CONFIG
+# =========================================================
 
-            nn.ReLU(),
+st.set_page_config(
+    page_title="AI Security Dashboard",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-            nn.Linear(64, 32),
+# =========================================================
+# RESPONSIVE CSS
+# =========================================================
 
-            nn.ReLU(),
+st.markdown("""
+<style>
 
-            nn.Linear(32, 2)     # Normal / Attack
+/* =====================================================
+GLOBAL
+===================================================== */
+
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    max-width: 100%;
+}
+
+/* =====================================================
+METRIC CARDS
+===================================================== */
+
+[data-testid="metric-container"] {
+
+    background-color: #111111;
+
+    border: 1px solid #333333;
+
+    padding: 12px;
+
+    border-radius: 12px;
+
+    text-align: center;
+}
+
+/* =====================================================
+TABS
+===================================================== */
+
+button[data-baseweb="tab"] {
+
+    font-size: 14px;
+
+    padding: 10px;
+
+    margin: 2px;
+}
+
+/* =====================================================
+GRAPHS
+===================================================== */
+
+.stPlotlyChart {
+
+    border-radius: 12px;
+
+    overflow: hidden;
+}
+
+/* =====================================================
+LOG CONTAINER
+===================================================== */
+
+.scroll-log {
+
+    height: 65vh;
+
+    overflow-y: auto;
+
+    padding: 12px;
+
+    border-radius: 12px;
+
+    background-color: #111111;
+
+    border: 1px solid #444444;
+}
+
+/* =====================================================
+LOG CARDS
+===================================================== */
+
+.log-card {
+
+    padding: 10px;
+
+    margin-bottom: 10px;
+
+    border-radius: 10px;
+
+    background-color: #1e1e1e;
+
+    color: white;
+
+    font-size: 14px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# TITLE
+# =========================================================
+
+st.title("🚀 AI vs Rule-Based Network Security Dashboard")
+
+st.caption("📱 Responsive AI Security Dashboard")
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+
+st.sidebar.header("⚙️ Controls")
+
+speed = st.sidebar.slider(
+    "Simulation Speed",
+    0.01,
+    1.0,
+    0.1,
+    key="speed_slider"
+)
+
+GRAPH_UPDATE_INTERVAL = st.sidebar.slider(
+    "Graph Refresh Interval",
+    1,
+    20,
+    10,
+    key="graph_interval"
+)
+
+# =========================================================
+# LOAD DATA
+# =========================================================
+
+@st.cache_data
+def load_data():
+
+    df = pd.read_parquet(
+        "clean_ddos_dataset.parquet"
+    )
+
+    df = df.replace(
+        [np.inf, -np.inf],
+        np.nan
+    )
+
+    df = df.dropna()
+
+    return df
+
+df = load_data()
+
+# =========================================================
+# SAVE ORIGINAL DATA
+# =========================================================
+
+original_df = df.copy()
+
+# =========================================================
+# LOAD MODELS
+# =========================================================
+
+@st.cache_resource
+def load_models():
+
+    ddos_model = DDoSNet(input_size=5)
+
+    ddos_model.load_state_dict(
+        torch.load(
+            "ddos_model.pth",
+            map_location=torch.device("cpu")
         )
+    )
 
+    ddos_model.eval()
 
-    def forward(self, x):
+    lstm_model = LSTMModel()
 
-        return self.model(x)
+    lstm_model.load_state_dict(
+        torch.load(
+            "lstm_model.pth",
+            map_location=torch.device("cpu")
+        )
+    )
 
+    lstm_model.eval()
 
+    rl = RLAgent()
+
+    return ddos_model, lstm_model, rl
+
+ddos_model, lstm_model, rl = load_models()
 
 # =========================================================
-# 2. TRAFFIC PREDICTION MODEL
+# FEATURES
 # =========================================================
 
-class LSTMModel(nn.Module):
+features = [
+    "Flow Duration",
+    "Total Fwd Packets",
+    "Total Backward Packets",
+    "Flow Bytes/s",
+    "Flow Packets/s"
+]
 
-    def __init__(self):
-
-        super().__init__()
-
-
-        self.lstm = nn.LSTM(
-
-            input_size=1,
-
-            hidden_size=64,
-
-            num_layers=2,
-
-            batch_first=True
-
-        )
-
-
-        self.fc = nn.Linear(
-
-            64,
-
-            1
-
-        )
-
-
-    def forward(self, x):
-
-        out, _ = self.lstm(x)
-
-        prediction = self.fc(
-
-            out[:, -1, :]
-
-        )
-
-        return prediction
-
-
-
+features = [
+    f for f in features
+    if f in df.columns
+]
 
 # =========================================================
-# 3. REINFORCEMENT LEARNING AGENT
+# SCALE ONLY ML DATA
 # =========================================================
 
-class RLAgent:
+scaler = StandardScaler()
 
+df[features] = scaler.fit_transform(
+    df[features]
+)
 
-    def __init__(self):
+# =========================================================
+# TABS
+# =========================================================
 
+tabs = st.tabs([
+    "📊 Dashboard",
+    "📈 Traffic",
+    "🤖 ML vs Rule",
+    "🔥 Probability",
+    "📜 Logs",
+    "🚀 Technology Comparison"
+])
 
-        # =================================================
-        # Q TABLE
-        #
-        # 10 traffic states
-        # 3 possible actions
-        #
-        # Action:
-        # 0 -> NORMAL
-        # 1 -> MONITOR
-        # 2 -> THROTTLE
-        #
-        # =================================================
+# =========================================================
+# DASHBOARD TAB
+# =========================================================
 
-        self.q_table = np.zeros(
+with tabs[0]:
 
-            (10,3)
+    st.subheader("📊 Real-Time Metrics")
 
-        )
+    top1, top2 = st.columns(2)
 
+    mid1, mid2 = st.columns(2)
 
-        # Available actions
+    bottom = st.container()
 
-        self.actions = [
+# =========================================================
+# GRAPH TABS
+# =========================================================
 
-            "NORMAL",
+with tabs[1]:
 
-            "MONITOR",
+    traffic_chart = st.empty()
 
-            "THROTTLE"
+with tabs[2]:
 
+    comparison_chart = st.empty()
+
+with tabs[3]:
+
+    probability_chart = st.empty()
+
+with tabs[4]:
+
+    st.subheader("📜 Live Detection Console")
+
+    log_div = st.empty()
+
+# =========================================================
+# TECHNOLOGY COMPARISON TAB
+# =========================================================
+
+with tabs[5]:
+
+    st.subheader("🚀 Proposed System vs Existing Technologies")
+
+    comparison_data = {
+
+        "Feature": [
+
+            "Rule-Based Detection",
+            "Machine Learning",
+            "Reinforcement Learning",
+            "Traffic Prediction",
+            "Real-Time Dashboard",
+            "Edge Computing",
+            "Cloud Integration",
+            "Adaptive Mitigation",
+            "Live Monitoring",
+            "Automatic Response"
+        ],
+
+        "Traditional IDS": [
+
+            1,0,0,0,0,0,0,0,1,0
+        ],
+
+        "ML-Based IDS": [
+
+            0,1,0,0,1,0,0,0,1,0
+        ],
+
+        "Proposed System": [
+
+            1,1,1,1,1,1,1,1,1,1
         ]
-
-
-        # =================================================
-        # Q Learning Parameters
-        # =================================================
-
-        self.alpha = 0.1       # Learning rate
-
-        self.gamma = 0.9       # Discount factor
-
-
-        # Exploration parameters
-
-        self.epsilon = 1.0
-
-        self.epsilon_decay = 0.95
-
-        self.min_epsilon = 0.05
-
-
-
-
-    # =====================================================
-    # STATE GENERATION
-    # =====================================================
-
-    def get_state(
-
-            self,
-
-            traffic,
-
-            attack_prob
-
-        ):
-
-
-        traffic = abs(float(traffic))
-
-
-
-        # Traffic level mapping
-
-        if traffic < 0.5:
-
-            state = 0
-
-
-        elif traffic < 1.0:
-
-            state = 2
-
-
-        elif traffic < 2.0:
-
-            state = 5
-
-
-        elif traffic < 3.5:
-
-            state = 7
-
-
-        else:
-
-            state = 9
-
-
-
-
-        # Increase severity if attack probability high
-
-        if attack_prob > 0.7:
-
-            state = min(
-
-                9,
-
-                state + 1
-
-            )
-
-
-
-        return state
-
-
-
-
-    # =====================================================
-    # CHOOSE ACTION USING RL
-    # =====================================================
-
-    def choose_action(
-
-            self,
-
-            state
-
-        ):
-
-
-        # =================================================
-        # Exploration
-        # Randomly try all actions
-        # =================================================
-
-        if np.random.random() < self.epsilon:
-
-
-            action = np.random.choice(
-
-                [0,1,2]
-
-            )
-
-
-
-        # =================================================
-        # Exploitation
-        # Select highest Q value action
-        # =================================================
-
-        else:
-
-
-            action = np.argmax(
-
-                self.q_table[state]
-
-            )
-
-
-
-        return action
-
-
-
-
-
-    # =====================================================
-    # RETURN ACTION NAME
-    # =====================================================
-
-    def get_action_name(
-
-            self,
-
-            action
-
-        ):
-
-
-        return self.actions[action]
-
-
-
-
-
-    # =====================================================
-    # REWARD FUNCTION
-    # =====================================================
-
-    def calculate_reward(
-
-            self,
-
-            anomaly,
-
-            action
-
-        ):
-
-
-
-        # =================================================
-        # Normal Traffic
-        # =================================================
-
-        if anomaly == False:
-
-
-
-            if action == 0:
-
-                # Correct normal decision
-
-                return 8
-
-
-
-            elif action == 1:
-
-                # Monitoring unnecessary
-
-                return 3
-
-
-
-            else:
-
-                # Wrong throttling
-
-                return -5
-
-
-
-
-        # =================================================
-        # Attack Traffic
-        # =================================================
-
-        else:
-
-
-
-            if action == 2:
-
-
-                # Correct mitigation
-
-                return 10
-
-
-
-            elif action == 1:
-
-
-                # Partial protection
-
-                return 4
-
-
-
-            else:
-
-
-                # Missed attack
-
-                return -10
-
-
-
-
-
-    # =====================================================
-    # Q TABLE UPDATE
-    # =====================================================
-
-    def update(
-
-            self,
-
-            state,
-
-            action,
-
-            reward,
-
-            next_state
-
-        ):
-
-
-
-        current_q = self.q_table[
-
-            state,
-
-            action
-
-        ]
-
-
-
-        max_future_q = np.max(
-
-            self.q_table[next_state]
-
-        )
-
-
-
-        new_q = current_q + self.alpha * (
-
-            reward
-
-            +
-
-            self.gamma * max_future_q
-
-            -
-
-            current_q
-
-        )
-
-
-
-        self.q_table[
-
-            state,
-
-            action
-
-        ] = new_q
-
-
-
-
-        # Reduce exploration
-
-        self.epsilon = max(
-
-            self.min_epsilon,
-
-            self.epsilon * self.epsilon_decay
-
-        )
-
-
-
-
-
-    # =====================================================
-    # DISPLAY Q TABLE
-    # =====================================================
-
-    def print_q_table(self):
-
-
-        print("\n========== Q TABLE ==========")
-
-        print(
-
-            self.q_table
-
-        )
-
-        print(
-
-            "=============================\n"
-
-        )
-
-
-
-
+    }
+
+    comparison_df = pd.DataFrame(
+        comparison_data
+    )
+
+    st.dataframe(
+        comparison_df,
+        use_container_width=True
+    )
 
 # =========================================================
-# TEST RL AGENT
+# STORAGE
 # =========================================================
 
-if __name__ == "__main__":
+traffic_history = []
 
+ml_history = []
 
-    agent = RLAgent()
+rule_history = []
 
+attack_prob_history = []
 
+logs_html = ""
 
-    print("\nRL ACTION TEST\n")
+seq = []
 
+SEQ_LEN = 10
 
+ml_detected = 0
 
-    for i in range(20):
+rule_detected = 0
 
+normal_count = 0
 
-        traffic = np.random.uniform(
+# =========================================================
+# MAIN LOOP
+# =========================================================
 
-            0,
+for i in range(min(500, len(df))):
 
-            5
+    row = df.iloc[i]
 
+    orig_row = original_df.iloc[i]
+
+    # =====================================================
+    # TRAFFIC
+    # =====================================================
+
+    traffic = abs(
+        float(orig_row["Flow Bytes/s"])
+    )
+
+    traffic_history.append(traffic)
+
+    # =====================================================
+    # LSTM
+    # =====================================================
+
+    seq.append([traffic])
+
+    if len(seq) > SEQ_LEN:
+        seq.pop(0)
+
+    if len(seq) == SEQ_LEN:
+
+        x = torch.tensor(
+            seq,
+            dtype=torch.float32
+        ).unsqueeze(0)
+
+        pred = lstm_model(x).item()
+
+    else:
+
+        pred = 0
+
+    # =====================================================
+    # ML DETECTION
+    # =====================================================
+
+    features_input = torch.tensor([
+        row["Flow Duration"],
+        row["Total Fwd Packets"],
+        row["Total Backward Packets"],
+        row["Flow Bytes/s"],
+        row["Flow Packets/s"]
+    ], dtype=torch.float32).unsqueeze(0)
+
+    out = ddos_model(features_input)
+
+    probabilities = F.softmax(
+        out,
+        dim=1
+    )
+
+    attack_prob = probabilities[0][1].item()
+
+    # =====================================================
+    # BALANCED ML DETECTION
+    # =====================================================
+
+    if attack_prob > 0.50:
+
+        ml_detection = "🚨 DDoS"
+
+        ml_detected += 1
+
+    else:
+
+        ml_detection = "✅ Normal"
+
+        normal_count += 1
+
+    # =====================================================
+    # RULE-BASED DETECTION
+    # USING ORIGINAL VALUES
+    # =====================================================
+
+    if (
+
+        orig_row["Flow Packets/s"] > 10000
+
+        or
+
+        orig_row["Total Fwd Packets"] > 5000
+
+        or
+
+        orig_row["Flow Bytes/s"] > 1000000
+    ):
+
+        rule_detection = "🚨 DDoS"
+
+        rule_detected += 1
+
+    else:
+
+        rule_detection = "✅ Normal"
+
+    # =====================================================
+    # RL AGENT
+    # =====================================================
+
+    state = rl.get_state(
+        traffic,
+        attack_prob
+    )
+
+    action_idx = rl.choose_action(state)
+
+    action = rl.actions[action_idx]
+
+    reward = rl.reward(
+        ml_detection == "🚨 DDoS",
+        action_idx
+    )
+
+    rl.update(
+        state,
+        action_idx,
+        reward,
+        state
+    )
+
+    # =====================================================
+    # STORE
+    # =====================================================
+
+    ml_history.append(
+        1 if ml_detection == "🚨 DDoS"
+        else 0
+    )
+
+    rule_history.append(
+        1 if rule_detection == "🚨 DDoS"
+        else 0
+    )
+
+    attack_prob_history.append(
+        attack_prob * 100
+    )
+
+    # =====================================================
+    # METRICS
+    # =====================================================
+
+    with tabs[0]:
+
+        top1.metric(
+            "Traffic",
+            f"{traffic:.2f}"
         )
 
-
-        attack_probability = np.random.uniform(
-
-            0,
-
-            1
-
+        top2.metric(
+            "ML Attack %",
+            f"{attack_prob*100:.2f}%"
         )
 
-
-
-        state = agent.get_state(
-
-            traffic,
-
-            attack_probability
-
+        mid1.metric(
+            "ML Detections",
+            ml_detected
         )
 
-
-
-        action = agent.choose_action(
-
-            state
-
+        mid2.metric(
+            "Rule Detections",
+            rule_detected
         )
 
+        with bottom:
 
+            st.metric(
+                "RL Action",
+                action
+            )
 
-        print(
+    # =====================================================
+    # GRAPH UPDATES
+    # =====================================================
 
-            "Traffic:",
+    if i % GRAPH_UPDATE_INTERVAL == 0:
 
-            round(traffic,2),
+        # =================================================
+        # TRAFFIC GRAPH
+        # =================================================
 
-            "Attack Probability:",
+        fig1 = go.Figure()
 
-            round(attack_probability,2),
-
-            "State:",
-
-            state,
-
-            "Action:",
-
-            agent.get_action_name(action)
-
+        fig1.add_trace(
+            go.Scatter(
+                y=traffic_history,
+                mode='lines',
+                name='Traffic'
+            )
         )
 
+        fig1.update_layout(
+            title="📈 Live Traffic Flow",
+            height=350
+        )
 
+        traffic_chart.plotly_chart(
+            fig1,
+            use_container_width=True
+        )
 
-    agent.print_q_table()
+        # =================================================
+        # ML VS RULE GRAPH
+        # =================================================
+
+        fig2 = go.Figure()
+
+        fig2.add_trace(
+            go.Scatter(
+                y=ml_history,
+                mode='lines',
+                name='ML Detection'
+            )
+        )
+
+        fig2.add_trace(
+            go.Scatter(
+                y=rule_history,
+                mode='lines',
+                name='Rule Detection'
+            )
+        )
+
+        fig2.update_layout(
+            title="🤖 ML vs 📏 Rule-Based",
+            height=350
+        )
+
+        comparison_chart.plotly_chart(
+            fig2,
+            use_container_width=True
+        )
+
+        # =================================================
+        # ATTACK PROBABILITY
+        # =================================================
+
+        fig3 = go.Figure()
+
+        fig3.add_trace(
+            go.Scatter(
+                y=attack_prob_history,
+                mode='lines',
+                name='Attack Probability'
+            )
+        )
+
+        fig3.update_layout(
+            title="🔥 Attack Probability %",
+            height=350
+        )
+
+        probability_chart.plotly_chart(
+            fig3,
+            use_container_width=True
+        )
+
+    # =====================================================
+    # LOGS
+    # =====================================================
+
+    color = "#00c853"
+
+    if ml_detection == "🚨 DDoS":
+        color = "#ff4b4b"
+
+    logs_html += f"""
+
+    <div class="log-card"
+    style="border-left:6px solid {color};">
+
+    <b>Time:</b> {i}
+    <br>
+
+    <b>Traffic:</b> {traffic:.2f}
+    <br>
+
+    <b>ML Detection:</b> {ml_detection}
+    <br>
+
+    <b>Rule Detection:</b> {rule_detection}
+    <br>
+
+    <b>Attack Probability:</b> {attack_prob*100:.2f}%
+    <br>
+
+    <b>RL Action:</b> {action}
+
+    </div>
+    """
+
+    log_div.markdown(
+        f"""
+        <div class="scroll-log">
+        {logs_html}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # =====================================================
+    # DELAY
+    # =====================================================
+
+    time.sleep(
+        max(speed, 0.05)
+    )
