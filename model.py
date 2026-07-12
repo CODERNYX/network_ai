@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+
 # =========================================================
-# 1. DDoS DETECTION MODEL
+# 1. DDOS DETECTION MODEL
 # =========================================================
 
 class DDoSNet(nn.Module):
@@ -22,12 +23,15 @@ class DDoSNet(nn.Module):
 
             nn.ReLU(),
 
-            nn.Linear(32, 2)   # Normal / Attack
+            nn.Linear(32, 2)     # Normal / Attack
         )
+
 
     def forward(self, x):
 
         return self.model(x)
+
+
 
 # =========================================================
 # 2. TRAFFIC PREDICTION MODEL
@@ -39,6 +43,7 @@ class LSTMModel(nn.Module):
 
         super().__init__()
 
+
         self.lstm = nn.LSTM(
 
             input_size=1,
@@ -48,15 +53,33 @@ class LSTMModel(nn.Module):
             num_layers=2,
 
             batch_first=True
+
         )
 
-        self.fc = nn.Linear(64, 1)
+
+        self.fc = nn.Linear(
+
+            64,
+
+            1
+
+        )
+
 
     def forward(self, x):
 
         out, _ = self.lstm(x)
 
-        return self.fc(out[:, -1, :])
+        prediction = self.fc(
+
+            out[:, -1, :]
+
+        )
+
+        return prediction
+
+
+
 
 # =========================================================
 # 3. REINFORCEMENT LEARNING AGENT
@@ -64,17 +87,31 @@ class LSTMModel(nn.Module):
 
 class RLAgent:
 
+
     def __init__(self):
+
 
         # =================================================
         # Q TABLE
+        #
+        # 10 traffic states
+        # 3 possible actions
+        #
+        # Action:
+        # 0 -> NORMAL
+        # 1 -> MONITOR
+        # 2 -> THROTTLE
+        #
         # =================================================
 
-        self.q_table = np.zeros((10, 3))
+        self.q_table = np.zeros(
 
-        # =================================================
-        # ACTIONS
-        # =================================================
+            (10,3)
+
+        )
+
+
+        # Available actions
 
         self.actions = [
 
@@ -83,152 +120,432 @@ class RLAgent:
             "MONITOR",
 
             "THROTTLE"
+
         ]
 
+
+        # =================================================
+        # Q Learning Parameters
+        # =================================================
+
+        self.alpha = 0.1       # Learning rate
+
+        self.gamma = 0.9       # Discount factor
+
+
+        # Exploration parameters
+
+        self.epsilon = 1.0
+
+        self.epsilon_decay = 0.95
+
+        self.min_epsilon = 0.05
+
+
+
+
     # =====================================================
-    # GET STATE BASED ON TRAFFIC
+    # STATE GENERATION
     # =====================================================
 
-    def get_state(self, traffic, attack_prob):
+    def get_state(
+
+            self,
+
+            traffic,
+
+            attack_prob
+
+        ):
+
 
         traffic = abs(float(traffic))
 
+
+
+        # Traffic level mapping
+
         if traffic < 0.5:
-            traffic_state = 0
+
+            state = 0
+
+
         elif traffic < 1.0:
-            traffic_state = 2
+
+            state = 2
+
+
         elif traffic < 2.0:
-            traffic_state = 5
+
+            state = 5
+
+
         elif traffic < 3.5:
-            traffic_state = 7
+
+            state = 7
+
+
         else:
-            traffic_state = 9
+
+            state = 9
+
+
+
+
+        # Increase severity if attack probability high
 
         if attack_prob > 0.7:
-            traffic_state = min(9, traffic_state + 1)
 
-        return traffic_state
+            state = min(
+
+                9,
+
+                state + 1
+
+            )
+
+
+
+        return state
+
+
+
 
     # =====================================================
-    # ACTION SELECTION
+    # CHOOSE ACTION USING RL
     # =====================================================
 
-    def choose_action(self, state):
+    def choose_action(
+
+            self,
+
+            state
+
+        ):
+
 
         # =================================================
-        # NORMAL ACTION
+        # Exploration
+        # Randomly try all actions
         # =================================================
 
-        if state <= 2:
+        if np.random.random() < self.epsilon:
 
-            return 0
+
+            action = np.random.choice(
+
+                [0,1,2]
+
+            )
+
+
 
         # =================================================
-        # MONITOR ACTION
-        # =================================================
-
-        elif state <= 6:
-
-            return 1
-
-        # =================================================
-        # THROTTLE ACTION
+        # Exploitation
+        # Select highest Q value action
         # =================================================
 
         else:
 
-            return 2
+
+            action = np.argmax(
+
+                self.q_table[state]
+
+            )
+
+
+
+        return action
+
+
+
+
+
+    # =====================================================
+    # RETURN ACTION NAME
+    # =====================================================
+
+    def get_action_name(
+
+            self,
+
+            action
+
+        ):
+
+
+        return self.actions[action]
+
+
+
+
 
     # =====================================================
     # REWARD FUNCTION
     # =====================================================
 
-    def reward(self, anomaly, action):
+    def calculate_reward(
+
+            self,
+
+            anomaly,
+
+            action
+
+        ):
+
+
 
         # =================================================
-        # NORMAL TRAFFIC
+        # Normal Traffic
         # =================================================
 
-        if not anomaly:
+        if anomaly == False:
 
-            # NORMAL action
+
+
             if action == 0:
+
+                # Correct normal decision
 
                 return 8
 
-            # MONITOR action
+
+
             elif action == 1:
+
+                # Monitoring unnecessary
 
                 return 3
 
-            # THROTTLE during normal traffic
+
+
             else:
+
+                # Wrong throttling
 
                 return -5
 
+
+
+
         # =================================================
-        # ATTACK TRAFFIC
+        # Attack Traffic
         # =================================================
 
         else:
 
-            # THROTTLE during attack
+
+
             if action == 2:
+
+
+                # Correct mitigation
 
                 return 10
 
-            # MONITOR during attack
+
+
             elif action == 1:
+
+
+                # Partial protection
 
                 return 4
 
-            # NORMAL during attack
+
+
             else:
+
+
+                # Missed attack
 
                 return -10
 
+
+
+
+
     # =====================================================
-    # Q LEARNING UPDATE
+    # Q TABLE UPDATE
     # =====================================================
 
     def update(
 
-        self,
+            self,
 
-        state,
+            state,
 
-        action,
+            action,
 
-        reward,
+            reward,
 
-        next_state,
+            next_state
 
-        alpha=0.1,
+        ):
 
-        gamma=0.9
-    ):
 
-        best_next = np.max(
+
+        current_q = self.q_table[
+
+            state,
+
+            action
+
+        ]
+
+
+
+        max_future_q = np.max(
+
             self.q_table[next_state]
+
         )
 
-        self.q_table[state, action] += alpha * (
 
-            reward +
 
-            gamma * best_next -
+        new_q = current_q + self.alpha * (
 
-            self.q_table[state, action]
+            reward
+
+            +
+
+            self.gamma * max_future_q
+
+            -
+
+            current_q
+
         )
+
+
+
+        self.q_table[
+
+            state,
+
+            action
+
+        ] = new_q
+
+
+
+
+        # Reduce exploration
+
+        self.epsilon = max(
+
+            self.min_epsilon,
+
+            self.epsilon * self.epsilon_decay
+
+        )
+
+
+
+
 
     # =====================================================
-    # PRINT Q TABLE
+    # DISPLAY Q TABLE
     # =====================================================
 
     def print_q_table(self):
 
+
         print("\n========== Q TABLE ==========")
 
-        print(self.q_table)
+        print(
 
-        print("=============================\n")
+            self.q_table
+
+        )
+
+        print(
+
+            "=============================\n"
+
+        )
+
+
+
+
+
+# =========================================================
+# TEST RL AGENT
+# =========================================================
+
+if __name__ == "__main__":
+
+
+    agent = RLAgent()
+
+
+
+    print("\nRL ACTION TEST\n")
+
+
+
+    for i in range(20):
+
+
+        traffic = np.random.uniform(
+
+            0,
+
+            5
+
+        )
+
+
+        attack_probability = np.random.uniform(
+
+            0,
+
+            1
+
+        )
+
+
+
+        state = agent.get_state(
+
+            traffic,
+
+            attack_probability
+
+        )
+
+
+
+        action = agent.choose_action(
+
+            state
+
+        )
+
+
+
+        print(
+
+            "Traffic:",
+
+            round(traffic,2),
+
+            "Attack Probability:",
+
+            round(attack_probability,2),
+
+            "State:",
+
+            state,
+
+            "Action:",
+
+            agent.get_action_name(action)
+
+        )
+
+
+
+    agent.print_q_table()
